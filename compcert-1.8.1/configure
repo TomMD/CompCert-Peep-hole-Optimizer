@@ -1,0 +1,256 @@
+#!/bin/sh
+
+#######################################################################
+#                                                                     #
+#              The Compcert verified compiler                         #
+#                                                                     #
+#          Xavier Leroy, INRIA Paris-Rocquencourt                     #
+#                                                                     #
+#  Copyright Institut National de Recherche en Informatique et en     #
+#  Automatique.  All rights reserved.  This file is distributed       #
+#  under the terms of the INRIA Non-Commercial License Agreement.     #
+#                                                                     #
+#######################################################################
+
+prefix=/usr/local
+bindir='$(PREFIX)/bin'
+libdir='$(PREFIX)/lib/compcert'
+target=''
+
+prompt() {
+    echo "$1 [$x] ? " | tr -d '\n'
+    read y
+    case "$y" in
+        "") ;;
+      none) x="";;
+         *) x="$y";;
+    esac
+}
+
+usage='Usage: ./configure [options] target
+
+Supported targets:
+  ppc-macosx       (PowerPC, MacOS X)
+  ppc-linux        (PowerPC, Linux)
+  arm-linux        (ARM, Linux)
+  ia32-linux       (x86 32 bits, Linux)
+  ia32-bsd         (x86 32 bits, BSD)
+  ia32-macosx      (x86 32 bits, MacOS X)
+  ia32-cygwin      (x86 32 bits, Cygwin environment under Windows)
+  manual           (edit configuration file by hand)
+
+Options:
+  -prefix <dir>    Install in <dir>/bin and <dir>/lib/compcert
+  -bindir <dir>    Install binaries in <dir>
+  -libdir <dir>    Install libraries in <dir>
+'
+
+# Parse command-line arguments
+
+while : ; do
+  case "$1" in
+    "") break;;
+    -prefix|--prefix)
+        prefix=$2; shift;;
+    -bindir|--bindir)
+        bindir=$2; shift;;
+    -libdir|--libdir)
+        libdir=$2; shift;;
+    *)
+        if test -n "$target"; then echo "$usage" 1>&2; exit 2; fi
+        target="$1";;
+  esac
+  shift
+done
+
+# Per-target configuration
+
+case "$target" in
+  powerpc-macosx|ppc-macosx)
+    arch="powerpc"
+    variant="macosx"
+    system="macosx"
+    cc="gcc -arch ppc"
+    cprepro="gcc -arch ppc -U__GNUC__ -U__BLOCKS__ -E"
+    casm="gcc -arch ppc -c"
+    clinker="gcc -arch ppc"
+    libmath=""
+    need_stdlib_wrapper="true";;
+  powerpc-linux|ppc-linux)
+    arch="powerpc"
+    variant="eabi"
+    system="linux"
+    cc="gcc"
+    cprepro="gcc -U__GNUC__ -E"
+    casm="gcc -c"
+    clinker="gcc"
+    libmath="-lm"
+    need_stdlib_wrapper="false";;
+  arm-linux)
+    arch="arm"
+    variant="linux"
+    system="linux"
+    cc="gcc"
+    cprepro="gcc -U__GNUC__ -E"
+    casm="gcc -c"
+    clinker="gcc"
+    libmath="-lm"
+    need_stdlib_wrapper="false";;
+  ia32-linux)
+    arch="ia32"
+    variant="standard"
+    system="linux"
+    cc="gcc -m32"
+    cprepro="gcc -m32 -U__GNUC__ -E"
+    casm="gcc -m32 -c"
+    clinker="gcc -m32"
+    libmath="-lm"
+    need_stdlib_wrapper="false";;
+  ia32-bsd)
+    arch="ia32"
+    variant="standard"
+    system="bsd"
+    cc="gcc -m32"
+    cprepro="gcc -m32 -U__GNUC__ -E"
+    casm="gcc -m32 -c"
+    clinker="gcc -m32"
+    libmath="-lm"
+    need_stdlib_wrapper="false";;
+  ia32-macosx)
+    arch="ia32"
+    variant="standard"
+    system="macosx"
+    cc="gcc -arch i386"
+    cprepro="gcc -arch i386 -U__GNUC__ -U__BLOCKS__ -E"
+    casm="gcc -arch i386 -c"
+    clinker="gcc -arch i386"
+    libmath=""
+    need_stdlib_wrapper="true";;
+  ia32-cygwin)
+    arch="ia32"
+    variant="standard"
+    system="cygwin"
+    cc="gcc -m32"
+    cprepro="gcc -m32 -U__GNUC__ -E"
+    casm="gcc -m32 -c"
+    clinker="gcc -m32"
+    libmath="-lm"
+    need_stdlib_wrapper="false";;
+  manual)
+    ;;
+  "")
+    echo "No target specified." 1>&2
+    echo "$usage" 1>&2
+    exit 2;;
+  *)
+    echo "Unknown target '$target'." 1>&2
+    echo "$usage" 1>&2
+    exit 2;;
+esac
+
+# Generate Makefile.config
+
+rm -f Makefile.config
+cat > Makefile.config <<EOF
+PREFIX=$prefix
+BINDIR=$bindir
+LIBDIR=$libdir
+EOF
+
+if test "$target" != "manual"; then
+cat >> Makefile.config <<EOF
+ARCH=$arch
+VARIANT=$variant
+SYSTEM=$system
+CC=$cc
+CPREPRO=$cprepro
+CASM=$casm
+CLINKER=$clinker
+LIBMATH=$libmath
+NEED_STDLIB_WRAPPER=$need_stdlib_wrapper
+EOF
+else
+cat >> Makefile.config <<'EOF'
+
+# Target architecture
+# ARCH=powerpc
+# ARCH=arm
+# ARCH=ia32
+ARCH=
+
+# Target ABI
+# VARIANT=macosx   # for PowerPC / MacOS X
+# VARIANT=eabi     # for PowerPC / Linux and other SVR4 or EABI platforms
+# VARIANT=linux    # for ARM
+# VARIANT=standard # for IA32
+VARIANT=
+
+# Target operating system and development environment
+# Possible choices for PowerPC:
+# SYSTEM=macosx
+# SYSTEM=linux
+# SYSTEM=diab
+# Possible choices for ARM:
+# SYSTEM=linux
+# Possible choices for IA32:
+# SYSTEM=linux
+# SYSTEM=bsd
+# SYSTEM=macosx
+# SYSTEM=cygwin
+SYSTEM=
+
+# C compiler for compiling library files
+CC=gcc
+
+# Preprocessor for .c files
+CPREPRO=gcc -U__GNUC__ -E
+
+# Assembler for assembling .s files
+CASM=gcc -c
+
+# Linker
+CLINKER=gcc
+
+# Math library.  Set to empty under MacOS X
+LIBMATH=-lm
+
+# Do we need the thin wrapper around standard library and standard includes
+# defined in directory runtime/ ?
+# NEED_STDLIB_WRAPPER=true  # for MacOS X
+# NEED_STDLIB_WRAPPER=false # for other systems
+NEED_STDLIB_WRAPPER=
+EOF
+fi
+
+# Summarize configuration
+
+if test "$target" = "manual"; then
+cat <<EOF
+
+Please finish the configuration by editing file ./Makefile.config
+
+EOF
+
+else
+
+bindirexp=`echo "$bindir" | sed -e "s|\\\$(PREFIX)|$prefix|"`
+libdirexp=`echo "$libdir" | sed -e "s|\\\$(PREFIX)|$prefix|"`
+
+cat <<EOF
+
+CompCert configuration:
+    Target architecture........... $arch
+    Application binary interface.. $variant
+    OS and development env........ $system
+    C compiler.................... $cc
+    C preprocessor................ $cprepro
+    Assembler..................... $casm
+    Linker........................ $clinker
+    Math library.................. $libmath
+    Needs wrapper around stdlib... $need_stdlib_wrapper
+    Binaries installed in......... $bindirexp
+    Library files installed in.... $libdirexp
+
+EOF
+
+fi
