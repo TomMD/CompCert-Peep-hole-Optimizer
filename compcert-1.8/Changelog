@@ -1,0 +1,244 @@
+Release 1.8, 2010-09-21
+=======================
+
+- The input language to the proved part of the compiler is no longer
+  Clight but CompCert C: a larger subset of the C language supporting
+  in particular side-effects within expressions.  The transformations
+  that pull side effects out of expressions and materialize implicit
+  casts, formerly performed by untrusted Caml code, are now fully
+  proved in Coq.
+
+- New port targeting Intel/AMD x86 processors.  Generates 32-bit x86 code
+  using SSE2 extensions for floating-point arithmetic.  Works under
+  Linux, MacOS X, and the Cygwin environment for Windows.
+  CompCert's compilation strategy is not a very good match for the
+  x86 architecture, therefore the performance of the generated code
+  is not as good as for the PowerPC port, but still usable.
+  (About 75% of the performance of gcc -O1 for x86, compared with
+   > 90% for PowerPC.)
+
+- More faithful semantics for volatile accesses: 
+  . volatile reads and writes from a volatile global variable are treated
+    like input and output system calls (respectively), bypassing
+    the memory model entirely;
+  . volatile reads and writes from other locations are treated like
+    regular loads and stores.
+
+- Introduced __builtin_memcpy() and __builtin_memcpy_words(), use them
+  instead of memcpy() to compile struct and union assignments.
+
+- Introduced __builtin_annotation() to transmit assertions from
+  the source program all the way to the generated assembly code.
+
+- Elimination of some useless casts around "&", "|" and "^" bitwise operators.
+
+- Produce fewer "moves" during RTL generation.  This speeds up the
+  rest of compilation and slightly improves the result of register
+  allocation when register pressure is high.
+
+- Improvements in register allocation:
+  . Implemented a spilling heuristic during register allocation.
+    This heuristic reduces significantly the amount of spill code
+    generated when register pressure is high.
+  . More coalescing between low-pressure and high-pressure variables.
+  . Aggressive coalescing between pairs of spilled variables.
+
+- Fixed some bugs in the emulation of bit fields.
+
+	
+Release 1.7.1, 2010-04-13
+=========================
+
+Bug fixes in the new C pre-simplifier:
+- Missing cast on return value for some functions
+- Incorrect simplification of some uses of || and &&
+- Nontermination in the presence of a bit field of size exactly 32 bits.
+- Global initializers for structs containing bit fields.
+- Wrong type in volatile reads from variables of type 'unsigned int'.
+
+Small improvements to the PowerPC port:
+- Added __builtin_trap() built-in function.
+- Support for '#pragma reserve_register' (EABI)
+- Less aggressive alignment of global variables.
+- Generate '.type' and '.size' directives (EABI).
+
+
+Release 1.7, 2010-03-31
+=======================
+
+- New implementation of the C type-checker, simplifier, and translation to
+  Clight.  Compared with the previous CIL-based solution, the new
+  implementation is more modular and supports more optional simplifications.
+
+- More features of the C language are handled by expansion during
+  translation to Clight:
+    . assignment between structs and unions (option -fstruct-assign)
+    . passing structs and union by value (option -fstruct-passing)
+    . bit-fields in structs (option -fbitfields)
+
+- The "volatile" modifier is now honored.  Volatile accesses are represented
+  in Clight by calls to built-in functions, which are preserved throughout
+  the compilation chain, then turned into processor loads and stores
+  at the end.
+
+- Generic support for C built-in functions.  These predefined external
+  functions give access to special instructions of the processor.  See
+  powerpc/CBuiltins.ml for the list of PowerPC built-in functions.
+
+- The memory model now exposes the bit-level in-memory representation
+  of integers and floats.  This strengthens the semantic preservation
+  theorem: we now prove that C code that directly manipulates these
+  bit-level representations (e.g. via a union between floats and integers)
+  is correctly compiled.
+
+- The memory model now supports fine-grained access control to individual
+  bytes of a memory block.  This feature is currently unused in the 
+  compiler proofs, but will facilitate connections with separation logics
+  later.
+
+- External functions are now allowed to read and modify memory.
+  The semantic preservation proofs were strengthened accordingly.
+  In particular, this enables the malloc() and free() C library functions
+  to be modeled as external functions in a provably correct manner.
+
+- Minor improvements in the handling of global environments and the
+  construction of the initial memory state.
+
+- Bug fixes in the handling of '#pragma section' and '#pragma set_section'.
+
+- The C test suite was enriched and restructured.
+
+	
+Release 1.6, 2010-01-13
+=======================
+
+- Support Clight initializers of the form "int * x = &y;".
+
+- Fixed spurious compile-time error on Clight initializers of the form
+  "const enum E x[2] = { E_1, E_2 };".
+
+- Produce informative error message if a 'return' without argument
+  occurs in a non-void function, or if a 'return' with an argument
+  occurs in a void function.
+
+- Preliminary support for '#pragma section' and '#pragma set_section'.
+
+- Preliminary support for small data areas in PowerPC code generator.
+
+- Back-end: added support for jump tables; used them to compile
+  dense 'switch' statements.
+
+- PowerPC code generator: force conversion to single precision before
+  doing a "store single float" instruction.
+
+
+Release 1.5, 2009-08-28
+=======================
+
+- Support for "goto" in the source language Clight.
+
+- Added small-step semantics for Clight.
+
+- Traces for diverging executions are now uniquely defined;
+  tightened semantic preservation results accordingly.
+
+- Emulated assignments between structures 
+  (during the C to Clight initial translation).
+
+- Fixed spurious compile-time error on Clight statements of the form
+  "x = f(...);" where x is a global variable.
+
+- Fixed spurious compile-time error on Clight initializers where
+  the initial value is the result of a floating-point computation
+  (e.g. "double x = 3.14159 / 2;").
+
+- Simplified the interface of the generic dataflow solver.
+
+- Reduced running time and memory requirements for the constant propagation
+  pass.
+
+- Improved the implementation of George and Appel's graph coloring heuristic:
+  runs faster, produces better results.
+
+- Revised the implementation of branch tunneling.
+
+- Improved modularization between processor-dependent and
+  processor-independent parts.
+
+
+Release 1.4.1, 2009-06-05
+=========================
+
+- Adapted to Coq 8.2-1.  No changes in functionality.
+
+Release 1.4, 2009-04-20
+=======================
+
+- Modularized the processor dependencies in the back-end.
+
+- Three target architectures are now supported:
+       PowerPC / MacOS X       (most mature)
+       PowerPC / EABI & Linux  (getting stable)
+       ARM / Linux EABI        (still experimental)
+
+- Added alignment constraints to the memory model.
+
+- Clight: added support for conditional expressions (a ? b : c);
+  removed support for array accesses a[i], now a derived form.
+
+- C front-end: honor "static" modifiers on globals.
+
+- New optimization over RTL: turning calls into tail calls when possible.
+
+- Instruction selection pass: elimination of redundant casts following
+  a memory load of a "small" memory quantity.
+
+- Linearization pass: improved the linearization heuristic.
+
+- Reloading pass: more economical use of temporaries.
+
+- Back-end: removed "alloc heap" instruction; removed pointer validity
+  checks in pointer comparisons.
+
+
+Release 1.3, 2008-08-11
+=======================
+
+- Added "goto" and labeled statements to Cminor.  Extended RTLgen and
+    its proof accordingly.
+
+- Introduced small-step transition semantics for Cminor; used it in
+    proof of RTLgen pass; proved consistency of Cminor big-step semantics
+    w.r.t. transition semantics.
+
+- Revised division of labor between the Allocation pass and the Reload pass.
+    The semantics of LTL and LTLin no longer need to anticipate the passing
+    of arguments through the conventional locations.
+
+- Cleaned up Stacking pass: the positions of the back link and of
+    the return address in the stack frame are no longer hard-wired
+    in the Mach semantics.
+
+- Added operator to convert from float to unsigned int; used it in C front-end
+
+- Added flag -fmadd to control recognition of fused multiply-add and -sub
+
+- Semantics of pointer-pointer comparison in Clight was incomplete:
+    pointers within different blocks can now be compared using == or !=
+
+- Addition integer + pointer is now supported in Clight.
+
+- Improved instruction selection for complex conditions involving || and &&.
+
+- Improved translation of Cminor "switch" statements to RTL decision trees.
+
+- Fixed error in C parser and simplifier related to "for" loops with
+    complex expressions as condition.
+
+- More benchmark programs in test/
+
+
+Release 1.2, 2008-04-03
+=======================
+
+- First public release

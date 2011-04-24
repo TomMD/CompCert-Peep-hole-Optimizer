@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "Patching files..."
+for i in *.patch; do patch < $i; done
