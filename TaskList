@@ -1,0 +1,23 @@
+0) Build an ML peephole optimizer.  Start with identity then perhaps grow
+  it to addressing basic load/store and multiply optimizations.
+
+1) Build the call-out from CompCert to the ML peephole.
+
+2) Build an assembly "validator" function in Coq.
+
+3) Prove, using Coq, that "validator" will only approve of assembly that is
+   semantically identical.
+
+
+The contruction, and proof of, the validator is the core of the work.  Notice
+Tristian said:
+
+> We conjecture
+> that our validator is complete for all program transformations that can only
+> rename variables, insert move operations, and delete operations and loads, but
+> treat as uninterpreted (and therefore preserve) all other computations.
+
+If he is right, then we can borrow his validator (and the matching proof), using
+that for and optimizer that is either A) identity B) Only performing load/store
+optimizations.  Once we go beyond that it will break down and we'll need to do
+real work.

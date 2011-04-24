@@ -1,0 +1,18 @@
+mult2:
+1) A load/store issue
+    movl    %edx, 0(%esp)
+    movl    0(%esp), %edx
+  --->
+    movl    %edx, 0(%esp)
+2) Use of leal where addl is probably faster
+    leal 0(,%eax,2), %eax
+  --->
+    add %eax, %eax
+ 
+mult1:
+1) The same load/store issue.
+2) This function is a nop - do we want to look hard at how ccomp
+builds it's functions and reduce the enter/exit overhead?
+
+mult4:
+1) leal to perform multiplication by a power of two (should use a left shift 'sall')
