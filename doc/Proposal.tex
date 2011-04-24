@@ -9,7 +9,7 @@
 \documentclass{exam}
 
 \begin{document}
-\title{Deign and Development of a Verified Peep-hole Optimizer for CompCert}
+\title{Design and Development of a Verified Peep-hole Optimizer for CompCert}
 
 \author{Thomas M. Du{B}uisson, Andrew Sackville-West}
 \maketitle
@@ -26,41 +26,43 @@ CompCert~\cite{compcert} compiler uses a computer assisted theorem
 prover to ensure its compiler is correct.  The downside to CompCert is
 performance.  Even from casual inspection of the resulting
 instructions from a CompCert compilation shows there is clearly
-``low-hanging fruit'' - opportunities to notably improve performance.
+``low-hanging fruit'' -- opportunities to notably improve performance.
 
 We propose to add a provably correct peep-hole optimizer to the last
 stage of CompCert compilation, the stage in which individual assembly
 instructions are selected.  For ease of development, we will target
-the x86 ComCert back-end.
+the x86 CompCert back-end.
 
 \section{Approach}
 % o Approach.  Are you doing experimental comparison, implementation,
 %              or a research paper survey?  What methodology will you
 %              use?
 
-Following the register allocation work done by Tristin and
-Leroy~\cite{regalloc}, we will perform all peep-hole optimizations in
-Caml.  The CompCert framework will run the untrusted optimizer on x86
-assembly code to acquire a {\it possibly correct} optimization.  Our
-CompCert additions will attempt to prove the optimized assembly has
-the same semantic meaning as the input provided to the optimizer.  A
-failure to prove the semantic correctness results in the non-optimized
-assembly being used for the final compilation.
-
-While the method of proving two assembly routines have the same
-meaning is one of the deliverables, our first area of exploration will
-be reverse information flow in a manner identical to the register
-allocation work.  FIXME what else?
-
+A variety of techniques are proposed for translation validation --
+{\it a posteriori} validation of the results of a program
+transformation \cite{transval}. The register allocation work done by
+Rideau and Leroy~\cite{regalloc} utilizes reverse information flow
+analysis to validate register allocation and spilling transformations
+performed by untrusted code. Our first area of investigation will
+attempt to apply this technique to peep-hole optimizations performed
+by untrusted Caml code.  The CompCert framework will run the untrusted
+optimizer on x86 assembly code to acquire a {\it possibly correct}
+optimization.  Our CompCert additions will attempt to prove the
+optimized assembly has the same semantic meaning as the input provided
+to the optimizer.  A failure to prove the semantic correctness results
+in the non-optimized assembly being used for the final compilation.
 
 \section{Deliverables}
 % o Deliverables.  What do you plan to hand in?  Just a paper?
 %                  Experimental results? Code?
-There are three main deliverables: amethod of proving two assembly routines
-have the same semantic meaning, an implementation of the proof in the CompCert
-framework, and a peep-hole optimizer in Caml.  The fact that the actual transformation
-is an optimizer (vs a obfuscation, or a resturcturing a la Native Client) is expected
-to be immaterial to the proof method; as a result, the optimizer will consist of
-relatively few, trivial transformations and only expanded given sufficient time.
+There are three main deliverables: a method of proving two assembly
+routines have the same semantic meaning, an implementation of the
+proof in the CompCert framework, and a peep-hole optimizer in Caml.
+The fact that the actual transformation is an optimizer (vs an
+obfuscation, or a restructuring \`a la Native Client) is expected to
+be immaterial to the proof method; as a result, the optimizer will
+likely consist of relatively few, trivial transformations and only
+expanded given sufficient time. Should this technique prove tractable,
+then additional optimizations can be added to the untrusted Caml code
 
 \end{document}
