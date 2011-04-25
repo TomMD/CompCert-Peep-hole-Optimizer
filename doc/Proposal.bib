@@ -1,0 +1,68 @@
+@inproceedings{Yang11,
+ title = "Finding and Understanding Bugs in C Compilers",
+ AUTHOR = {Xuejun Yang and Yang Chen and Eric Eide and John Regehr},
+ year = {2011},
+ series = {PLDI '11},
+ booktitle = {Proceedings of the 2011 ACM SIGPLAN conference on Programming Language Design and Implementation},
+ publisher = {ACM},
+}
+
+@ARTICLE{Leroy-backend,
+  AUTHOR = {Xavier Leroy},
+  TITLE = {A formally verified compiler back-end},
+  JOURNAL = {Journal of Automated Reasoning},
+  VOLUME = 43,
+  NUMBER = 4,
+  PAGES = {363--446},
+  YEAR = 2009,
+  URL = {http://gallium.inria.fr/~xleroy/publi/compcert-backend.pdf},
+  URLPUBLISHER = {http://dx.doi.org/10.1007/s10817-009-9155-4},
+  HAL = {http://hal.inria.fr/inria-00360768/},
+  PUBKIND = {journal-int-mono}
+}
+
+@INPROCEEDINGS{Rideau-Leroy-regalloc,
+  AUTHOR = {Silvain Rideau and Xavier Leroy},
+  TITLE = {Validating register allocation and spilling},
+  BOOKTITLE = {Compiler Construction (CC 2010)},
+  YEAR = 2010,
+  PUBLISHER = {Springer},
+  SERIES = {Lecture Notes in Computer Science},
+  VOLUME = 6011,
+  PAGES = {224-243},
+  XTOPIC = {compcert},
+  URL = {http://gallium.inria.fr/~xleroy/publi/validation-regalloc.pdf},
+  URLPUBLISHER = {http://dx.doi.org/10.1007/978-3-642-11970-5_13},
+  ABSTRACT = {Following the translation validation approach to high-assurance
+compilation, we describe a new algorithm for validating {\em a
+posteriori} the results of a run of register allocation.  The
+algorithm is based on backward dataflow inference of
+equations between variables, registers and stack locations, and can
+cope with sophisticated forms of spilling and live range splitting, as
+well as many forms of architectural irregularities such as overlapping
+registers.  The soundness of the algorithm was mechanically proved
+using the Coq proof assistant.}
+}
+
+@INPROCEEDINGS{2008-Tristan-Leroy-POPL,
+  AUTHOR = {Jean-Baptiste Tristan and Xavier Leroy},
+  TITLE = {Formal verification of translation validators:
+                 A case study on instruction scheduling optimizations},
+  BOOKTITLE = {Proceedings of the 35th {ACM} Symposium on Principles of
+                  Programming Languages (POPL'08)},
+  PAGES = {17--27},
+  PUBLISHER = {ACM Press},
+  YEAR = 2008,
+  MONTH = JAN,
+  URL = {http://gallium.inria.fr/~xleroy/publi/validation-scheduling.pdf},
+  HAL = {http://hal.inria.fr/inria-00289540/},
+  URLPUBLISHER = {http://doi.acm.org/10.1145/1328897.1328444},
+  PUBKIND = {conf-int-mono},
+  ABSTRACT = {Translation validation consists of transforming a program and a
+posteriori validating it in order to detect a modification of its
+semantics. This approach can be used in a verified compiler, provided
+that validation is formally proved to be correct. We present two such
+validators and their Coq proofs of correctness.  The validators are
+designed for two instruction scheduling optimizations: list
+scheduling and trace scheduling.}
+}

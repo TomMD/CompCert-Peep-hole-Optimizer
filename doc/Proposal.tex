@@ -18,11 +18,11 @@
 Modern compilers are so focused on performance and portability that
 correctness is almost a second class citizen.  When looking only at
 the GNU Compiler Collection and Low Level Virtual Machine projects,
-the CSmith project~\cite{csmith} discovered over 325 bugs where the
+the CSmith project~\cite{Yang11} discovered over 325 bugs where the
 compilers would produce incorrectly behaving programs.
 
 Fortunately a compiler was developed with the opposite priorities; the
-CompCert~\cite{compcert} compiler uses a computer assisted theorem
+CompCert~\cite{Leroy-backend} compiler uses a computer assisted theorem
 prover to ensure its compiler is correct.  The downside to CompCert is
 performance.  Even from casual inspection of the resulting
 instructions from a CompCert compilation shows there is clearly
@@ -40,8 +40,8 @@ the x86 CompCert back-end.
 
 A variety of techniques are proposed for translation validation --
 {\it a posteriori} validation of the results of a program
-transformation \cite{transval}. The register allocation work done by
-Rideau and Leroy~\cite{regalloc} utilizes reverse information flow
+transformation \cite{2008-Tristan-Leroy-POPL}. The register allocation work done by
+Rideau and Leroy~\cite{Rideau-Leroy-regalloc} utilizes reverse information flow
 analysis to validate register allocation and spilling transformations
 performed by untrusted code. Our first area of investigation will
 attempt to apply this technique to peep-hole optimizations performed
@@ -64,5 +64,8 @@ be immaterial to the proof method; as a result, the optimizer will
 likely consist of relatively few, trivial transformations and only
 expanded given sufficient time. Should this technique prove tractable,
 then additional optimizations can be added to the untrusted Caml code
+
+\bibliography{Proposal}{}
+\bibliographystyle{plain}
 
 \end{document}
