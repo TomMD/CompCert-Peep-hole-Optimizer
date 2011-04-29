@@ -11,6 +11,10 @@
 (* *********************************************************************)
 
 (** Translation from Mach to IA32 Asm. *)
+Add LoadPath "../common".
+Add LoadPath "../backend".
+Add LoadPath "../lib".
+Add LoadPath "./standard".
 
 Require Import Coqlib.
 Require Import Maps.
@@ -493,21 +497,43 @@ Fixpoint transl_code (f: Mach.function) (il: list Mach.instruction) :=
   | i1 :: il' => do k <- transl_code f il'; transl_instr f i1 k
   end.
 
+(** Peephole optimization of function level lists of assembly code. We
+  feed the optimizer sliding windows of up to 4 instructions and then
+  validate the results returned. If the results are valid, they are
+  used, otherwise, they are discarded. **)
+Definition opt_window (c : Asm.code) :=
+  Some c.
+
+Fixpoint optimize (c : Asm.code) {struct c}: Asm.code :=
+  if zlt (list_length_z c) 4 
+  then let c' := opt_window c in
+       match c' with 
+         | Some opt_c' => opt_c'
+         | _ => c
+         end
+  else let c' := match c with
+                   | i1 :: i2 :: i3 :: i4 :: _ => i1 :: i2 :: i3 :: i4 :: nil
+                   | _ => c  (* this isn't right, should fail *)
+                 end   
+       in
+       let opt_c' := opt_window c' in
+       match opt_c', c with
+         | Some opt_c'', _::_::_::_::cs => opt_c'' ++ optimize cs
+         | _, _::_::_::_::cs => c' ++ optimize cs
+         | _, _ => c' (* again this isn't right, and it should fail instead *)
+       end.
+
 (** Translation of a whole function.  Note that we must check
   that the generated code contains less than [2^32] instructions,
   otherwise the offset part of the [PC] code pointer could wrap
   around, leading to incorrect executions. *)
-
+ 
 Definition transf_function (f: Mach.function) : res Asm.code :=
   do c' <- transl_code f f.(fn_code);
-  let c := match c' with 
-             | i1 :: i2 :: i3 :: is => i1 :: i2 :: i3 :: Por_rr EAX EAX :: is
-             | _ => c'
-           end
-  in
-  if zlt (list_length_z c) Int.max_unsigned 
+  let opt_c := optimize c' in
+  if zlt (list_length_z opt_c) Int.max_unsigned 
   then OK (Pallocframe (- f.(fn_framesize)) f.(fn_stacksize)
-                       f.(fn_retaddr_ofs) f.(fn_link_ofs) :: c)
+                       f.(fn_retaddr_ofs) f.(fn_link_ofs) :: opt_c)
   else Error (msg "code size exceeded").
 
 Definition transf_fundef (f: Mach.fundef) : res Asm.fundef :=
