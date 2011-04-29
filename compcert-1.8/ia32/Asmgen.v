@@ -499,7 +499,12 @@ Fixpoint transl_code (f: Mach.function) (il: list Mach.instruction) :=
   around, leading to incorrect executions. *)
 
 Definition transf_function (f: Mach.function) : res Asm.code :=
-  do c <- transl_code f f.(fn_code);
+  do c' <- transl_code f f.(fn_code);
+  let c := match c' with 
+             | i1 :: i2 :: i3 :: is => i1 :: i2 :: i3 :: Por_rr EAX EAX :: is
+             | _ => c'
+           end
+  in
   if zlt (list_length_z c) Int.max_unsigned 
   then OK (Pallocframe (- f.(fn_framesize)) f.(fn_stacksize)
                        f.(fn_retaddr_ofs) f.(fn_link_ofs) :: c)
