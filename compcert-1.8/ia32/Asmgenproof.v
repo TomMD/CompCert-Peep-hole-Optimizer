@@ -157,10 +157,8 @@ Proof.
                  | i1 :: i2 :: i3 :: is =>
                      i1 :: i2 :: i3 :: Por_rr EAX EAX :: is
            end) = (x)). admit.
-  rewrite M0 in *.
-
-
-destruct (zlt (list_length_z x) Int.max_unsigned); monadInv EQ0.
+  (* rewrite M0 in *. *)
+  destruct (zlt (list_length_z (optimize x)) Int.max_unsigned); monadInv EQ0.
   rewrite list_length_z_cons. omega. 
 Qed.
 
@@ -521,10 +519,16 @@ Qed.
 
 Lemma transl_find_label:
   forall f tf,
-  transf_function f = OK tf ->
+  transf_function f = OK tf -> 
   match Mach.find_label lbl f.(fn_code) with
   | None => find_label lbl tf = None
   | Some c => exists tc, find_label lbl tf = Some tc /\ transl_code f c = OK tc
+             (* We'll have to do something different here TMD
+                   match transl_code f c with
+                     | OK c' => fmap optimize c' = tc
+                     | Error e => True
+                   end
+              *)
   end.
 Proof.
   intros. monadInv H.
@@ -537,11 +541,11 @@ Proof.
                  | i1 :: i2 :: i3 :: is =>
                      i1 :: i2 :: i3 :: Por_rr EAX EAX :: is
            end) = (x)). admit.
-  rewrite M0 in *.
+  (* rewrite M0 in *. *)
 
-(* note that the monadInv had been inv prior to this changes... ASW *)
+  (* note that the monadInv had been inv prior to this changes... ASW *)
 
- destruct (zlt (list_length_z x) Int.max_unsigned); monadInv EQ0.
+  destruct (zlt (list_length_z (optimize x)) Int.max_unsigned); monadInv EQ0.
   simpl. apply transl_code_label; auto. 
 Qed.
 

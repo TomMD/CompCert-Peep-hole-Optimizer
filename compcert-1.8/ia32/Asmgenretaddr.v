@@ -56,7 +56,7 @@ Qed.
 (** Consider a Mach function [f] and a sequence [c] of Mach instructions
   representing the Mach code that remains to be executed after a
   function call returns.  The predicate [return_address_offset f c ofs]
-  holds if [ofs] is the integer offset of the PPC instruction
+  holds if [ofs] is the integer offset of the ASM instruction
   following the call in the Asm code obtained by translating the
   code of [f]. Graphically:
 <<
@@ -237,9 +237,8 @@ Proof.
   intros.
   caseEq (transf_function f). intros tf TF. 
   caseEq (transl_code f c). intros tc TC.  
-  assert (is_tail tc tf). 
+  assert (is_tail tc tf).   (* This assert is not always true, see below comment *)
   unfold transf_function in TF. monadInv TF.
-
 (* altered proof ASW *)
 (*  assert (M0:(match x with
                  | nil => x
@@ -249,22 +248,31 @@ Proof.
                      i1 :: i2 :: i3 :: Por_rr EAX EAX :: is
            end) = (x)). admit.
   rewrite M0 in *.*)
+
+
   destruct (zlt (list_length_z (optimize x)) Int.max_unsigned); monadInv EQ0.
-  IsTail. eapply transl_code_tail; eauto.
+  (* This subgoal IS NOT (always) TRUE for the peephole optimized code
+     `is_tail t1 t2` means Exists [t] s.t.  [t] ++ [t1] == [t2].  If [t1]
+     gets optimized then this will not hold! *)
+  IsTail.
+  (* Handle the peep-hole optimizer! *)
+    assert (optimize x = x) as opt_x. admit.  (* For now this is true, later it will change *)
+  rewrite opt_x.
+  eapply transl_code_tail; eauto.
   destruct (is_tail_code_tail _ _ H0) as [ofs A].
   exists (Int.repr ofs). constructor; intros. congruence. 
   intros. exists (Int.repr 0). constructor; intros; congruence.
   intros. exists (Int.repr 0). constructor; intros; congruence.
 Qed.
 
-(* original proof *)
-(*   destruct (zlt (list_length_z x) Int.max_unsigned); monadInv EQ0. *)
-(*   IsTail. eapply transl_code_tail; eauto.  *)
-(*   destruct (is_tail_code_tail _ _ H0) as [ofs A]. *)
-(*   exists (Int.repr ofs). constructor; intros. congruence.  *)
-(*   intros. exists (Int.repr 0). constructor; intros; congruence. *)
-(*   intros. exists (Int.repr 0). constructor; intros; congruence. *)
-(* Qed. *)
+(* original proof *)(*
+   destruct (zlt (list_length_z x) Int.max_unsigned); monadInv EQ0.
+   IsTail. eapply transl_code_tail; eauto.
+   destruct (is_tail_code_tail _ _ H0) as [ofs A].
+   exists (Int.repr ofs). constructor; intros. congruence.
+   intros. exists (Int.repr 0). constructor; intros; congruence.
+   intros. exists (Int.repr 0). constructor; intros; congruence.
+ Qed.*)
 
  
 

@@ -30,7 +30,7 @@ main:
 	cmpl	$10000, %esi
 	jge	.L101
 	leal	0(%ebx,%esi,1), %ebx
-	movl	40(%esp), %eax
+	movl	40(%esp), %eax		# INVARIANT HOISTING
 	leal	0(%esi,%eax,1), %esi
 	jmp	.L100
 .L101:

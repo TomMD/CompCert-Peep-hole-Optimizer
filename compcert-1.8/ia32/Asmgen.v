@@ -497,12 +497,26 @@ Fixpoint transl_code (f: Mach.function) (il: list Mach.instruction) :=
   | i1 :: il' => do k <- transl_code f il'; transl_instr f i1 k
   end.
 
+(** peephole_validate validates the code optimized by the untrusted
+  optimizer is semantically correct.  We only need to prove that
+  peephole_validate returns true only when the two inputs are
+  semantically correct.  It would be nice to have a proof that it
+  doesn't return false given certain known-correct conditions, but
+  that isn't required.
+ *)
+Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) : bool := false.
+
+Parameter ml_optimize : Asm.code -> Asm.code.
+
 (** Peephole optimization of function level lists of assembly code. We
   feed the optimizer sliding windows of up to 4 instructions and then
   validate the results returned. If the results are valid, they are
   used, otherwise, they are discarded. **)
 Definition opt_window (c : Asm.code) :=
-  Some c.
+  let c' := ml_optimize c
+  in if peephole_validate c c'
+      then Some c'
+      else Some c.
 
 Fixpoint optimize (c : Asm.code) {struct c}: Asm.code :=
   if zlt (list_length_z c) 4 
