@@ -174,24 +174,71 @@ Definition reg_eq (r : preg) (rs1 rs2 : regset) : {rs1 r = rs2 r} + {rs1 r <> rs
   refine (fun r rs1 rs2 => val_eq_dec (rs1 r) (rs2 r)).
 Defined.
 
+Notation "x &&& y" := (if x then if y then true else false else false).
 Definition regs_eq (rs1 rs2 : regset) : bool.
-  refine (fun rs1 rs2 => 
-  if val_eq_dec (rs1 PC) (rs2 PC) 
-    then if val_eq_dec (rs1 (IR EAX)) (rs2 (IR EAX))
-      then true
-      else false
-    else false).
+  refine (fun rs1 rs2 =>  
+    reg_eq PC rs1 rs2 &&&
+    reg_eq ST0 rs1 rs2 &&&
+    reg_eq RA rs1 rs2 &&&
+    reg_eq EAX rs1 rs2 &&&
+    reg_eq EBX rs1 rs2 &&&
+    reg_eq ECX rs1 rs2 &&&
+    reg_eq EDX rs1 rs2 &&&
+    reg_eq ESI rs1 rs2 &&&
+    reg_eq EDI rs1 rs2 &&&
+    reg_eq EBP rs1 rs2 &&&
+    reg_eq ESP rs1 rs2 &&&
+    reg_eq XMM0 rs1 rs2 &&&
+    reg_eq XMM1 rs1 rs2 &&&
+    reg_eq XMM2 rs1 rs2 &&&
+    reg_eq XMM3 rs1 rs2 &&&
+    reg_eq XMM4 rs1 rs2 &&&
+    reg_eq XMM5 rs1 rs2 &&&
+    reg_eq XMM6 rs1 rs2 &&&
+    reg_eq XMM7 rs1 rs2 &&&
+    reg_eq ZF rs1 rs2 &&&
+    reg_eq CF rs1 rs2 &&&
+    reg_eq PF rs1 rs2 &&&
+    reg_eq SOF rs1 rs2).
 Defined.
 
-Theorem rs_eq__r_eq : forall (r : preg) (rs1 rs2 : regset), regs_eq rs1 rs2 = true -> rs1 r = rs2 r.
+Lemma if_falses : forall b : bool,
+  (if b then false else false) = false.
 Proof.
-  intro r. induction r.
-  intros. unfold regs_eq in H. destruct (val_eq_dec (rs1 PC) (rs2 PC)). assumption. inversion H.
+  intro b. induction b; auto.
+Qed.
 
-(* what does the equal sign mean here? In other words, how do we specify that two PCs are equivalent? *)
+Theorem rs_eq__r_eq : forall (r : preg) (rs1 rs2 : regset), 
+  regs_eq rs1 rs2 = true ->  rs1 r = rs2 r.
+Proof.
+  intro r. induction r; intros; unfold regs_eq in H.
+  destruct (reg_eq PC rs1 rs2). auto. inversion H.
 
-Inductive pc_equiv :=
-| 
+  induction i; intros;
+  match goal with
+    | |- ?RS1 ?R = ?RS2 _ => destruct (reg_eq R RS1 RS2)
+  end; auto; rewrite if_falses in *; inversion H.
+
+  induction f; intros;
+  match goal with
+    | |- ?RS1 ?R = ?RS2 _ => destruct (reg_eq R RS1 RS2)
+  end; auto; rewrite if_falses in *; inversion H.
+  
+  destruct (reg_eq ST0 rs1 rs2). auto. destruct (reg_eq PC rs1 rs2); inversion H.
+
+  induction c; intros;
+  match goal with
+    | |- ?RS1 ?R = ?RS2 _ => destruct (reg_eq R RS1 RS2)
+  end; auto; rewrite if_falses in *; inversion H.
+
+  destruct (reg_eq RA rs1 rs2). auto. rewrite if_falses in H. inversion H.
+Qed.
+
+
+
+
+  
+  
 
 (*Inductive ireg: Type :=
   | EAX: ireg  | EBX: ireg  | ECX: ireg  | EDX: ireg
