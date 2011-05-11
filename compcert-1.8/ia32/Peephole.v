@@ -24,25 +24,6 @@ Section Status_Dec.
 
 Variable ge : genv.
 
-Eval compute in (exec_instr ge nil (Pmov_rr EAX EBX) ((Pregmap.init Vundef)#EAX <- Vzero) Mem.empty).
-Definition exec1 := 
-  exec_instr ge
-    nil 
-    (Pmov_rr EAX EBX) 
-    (((Pregmap.init Vundef)#EAX <- Vzero) # EBX <- Vzero)
-    Mem.empty.
-
-Definition exec2 := 
-  exec_instr ge
-    nil 
-    (Pmov_rr EBX EAX) 
-    (((Pregmap.init Vundef)#EAX <- Vzero) # EBX <- Vzero)
-    Mem.empty.
-
-Eval compute in (((Pregmap.init Vundef) # EAX <- Vzero) EAX).
-Eval simpl in ((Pregmap.init Vundef) = (Pregmap.init Vundef)).
-
-
 Lemma int_eq_true : forall x y, Int.eq x y = true -> x = y.
 Proof.
   intros.
@@ -175,6 +156,8 @@ Definition reg_eq (r : preg) (rs1 rs2 : regset) : {rs1 r = rs2 r} + {rs1 r <> rs
 Defined.
 
 Notation "x &&& y" := (if x then if y then true else false else false).
+
+
 Definition regs_eq (rs1 rs2 : regset) : bool.
   refine (fun rs1 rs2 =>  
     reg_eq PC rs1 rs2 &&&
@@ -208,8 +191,8 @@ Proof.
   intro b. induction b; auto.
 Qed.
 
-Theorem rs_eq__r_eq : forall (r : preg) (rs1 rs2 : regset), 
-  regs_eq rs1 rs2 = true ->  rs1 r = rs2 r.
+Theorem rs_eq__r_eq : forall  (r : preg) (rs1 rs2 : regset), 
+  regs_eq rs1 rs2 = true -> rs1 r = rs2 r.
 Proof.
   intro r. induction r; intros; unfold regs_eq in H.
   destruct (reg_eq PC rs1 rs2). auto. inversion H.
@@ -234,10 +217,45 @@ Proof.
   destruct (reg_eq RA rs1 rs2). auto. rewrite if_falses in H. inversion H.
 Qed.
 
+Theorem rs_eq__r_eq2 : forall rs1 rs2,
+  regs_eq rs1 rs2 = true -> forall r, rs1 r = rs2 r.
+Proof.
+  intros. induction r;
+  apply rs_eq__r_eq; assumption.
+Qed.
+
+Lemma regs_eq__eq : forall rs1 rs2 : regset,
+  regs_eq rs1 rs2 = true -> rs1 = rs2.
+Proof.
+  intros.
+  assert (forall r, rs1 r = rs2 r).
+  intros. apply rs_eq__r_eq. apply H. 
+Require Import Coq.Logic.FunctionalExtensionality.
+  apply functional_extensionality. assumption.
+Qed.
 
 
-
+Lemma reg_not_eq__regs_not_eq : forall rs1 rs2,
+  (exists r, rs1 r <> rs2 r) -> regs_eq rs1 rs2 = false.
+  intros.
+  case_eq (regs_eq rs1 rs2).
+  intros. inversion H. elimtype False.
+  apply H1. apply rs_eq__r_eq. assumption.
+  intros. reflexivity.
+Qed.
   
+Lemma regs_not_eq__not_eq : forall rs1 rs2 : regset,
+  regs_eq rs1 rs2 = false -> exists r, rs1 r <> rs2 r.
+Proof.
+  intros.
+  case_eq (regs_eq rs1 rs2). intros.
+  rewrite H in H0. inversion H0.
+  intros. clear H0.
+  
+  eexists.
+  unfold not.
+  intros. unfold regs_eq in H.
+Admitted.
   
 
 (*Inductive ireg: Type :=
@@ -274,20 +292,75 @@ Inductive preg: Type :=
 *) 
   
 
-(* Here we attempt to define equality of register sets. Two registers
-sets, rs1 rs2, are equivalent if (for all R : preg, R <> PC, rs1 R =
-rs2 R) /\ rs1 PC equiv rs2 PC) for some equivalence relation on the
-dereference of PCs. *)
+(* work an example *)
 
+Eval compute in (exec_instr ge nil (Pmov_rr EAX EBX) ((Pregmap.init Vundef)#EAX <- Vzero) Mem.empty).
+Definition exec1 := 
+  exec_instr ge
+    nil 
+    (Pmov_rr EAX EBX) 
+    (((Pregmap.init Vundef)#EAX <- Vzero) # EBX <- Vzero)
+    Mem.empty.
 
-Theorem test : exec1 = exec2.
-simpl. unfold exec1. unfold exec2. simpl. 
+Definition exec2 := 
+  exec_instr ge
+    nil 
+    (Pmov_rr EBX EAX) 
+    (((Pregmap.init Vundef)#EAX <- Vzero) # EBX <- Vzero)
+    Mem.empty.
 
-assert (H:(((Pregmap.init Vundef) # EAX <- Vzero) # EBX <- Vzero) # EAX <-
-        (((Pregmap.init Vundef) # EAX <- Vzero) # EBX <- Vzero EBX) =
-        (((Pregmap.init Vundef) # EAX <- Vzero) # EBX <- Vzero) # EBX <-
+Eval compute in (((Pregmap.init Vundef) # EAX <- Vzero) EAX).
+Eval simpl in ((Pregmap.init Vundef) = (Pregmap.init Vundef)).
+
+Lemma initregs_undef : forall r,
+  (Pregmap.init Vundef) r = Vundef. 
+Proof.
+  intros. induction r; reflexivity.
+Qed.
+
+Example test : exec1 = exec2.
+Proof.
+  simpl. unfold exec1. unfold exec2. simpl. 
+  remember ((((Pregmap.init Vundef) # EAX <- Vzero) # EBX <- Vzero) # EAX <-
+        (((Pregmap.init Vundef) # EAX <- Vzero) # EBX <- Vzero EBX)).
+  remember ((((Pregmap.init Vundef) # EAX <- Vzero) # EBX <- Vzero) # EBX <-
         (((Pregmap.init Vundef) # EAX <- Vzero) # EBX <- Vzero EAX)).
-(* need an equality relation on registers *).
+  f_equal. f_equal.
+  apply regs_eq__eq.
+  case_eq (regs_eq v v0).
+  intros. reflexivity.
+  intros.
+ rewrite <- H.    
+ apply regs_not_eq__not_eq in H. 
+ inversion H.
+ induction x.
+ destruct (v PC). destruct (v0 PC). elimtype False. apply H0. reflexivity.
+  
+
+
+
+  case_eq (regs_eq v v0).  
+  intros. (* need lemma -- regs_eq v v0 = true -> v = v0 to allow rewrite. *)
+  apply regs_eq__eq in H. rewrite H. reflexivity.
+  intro.
+  f_equal.
+  f_equal.
+  
+
+
+  apply regs_eq__eq.
+  apply regs_not_eq__not_eq in H. inversion H. 
+  contradiction H0.
+  assert (regs_eq v v0 = true).
+
+  induction x.
+    case_eq (v PC).
+    intros. rewrite <- H1.
+  Eval compute in ((Pregmap.init Vundef) PC).
+ destruct (v PC). destruct (v0 PC). reflexivity. 
+  
+  
+  
 
 
 (* the initial register state for a program:
