@@ -504,7 +504,10 @@ Fixpoint transl_code (f: Mach.function) (il: list Mach.instruction) :=
   doesn't return false given certain known-correct conditions, but
   that isn't required.
  *)
-Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) : bool := false.
+Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) : bool :=
+  if Zlt_bool (list_length_z c) (list_length_z d)
+    then false
+    else false.  (* TMD Insert real validator here, in the 'else' branch *)
 
 Parameter ml_optimize : Asm.code -> Asm.code.
 
@@ -515,26 +518,20 @@ Parameter ml_optimize : Asm.code -> Asm.code.
 Definition opt_window (c : Asm.code) :=
   let c' := ml_optimize c
   in if peephole_validate c c'
-      then Some c'
-      else Some c.
+      then c'
+      else c.
 
 Fixpoint optimize (c : Asm.code) {struct c}: Asm.code :=
   if zlt (list_length_z c) 4 
-  then let c' := opt_window c in
-       match c' with 
-         | Some opt_c' => opt_c'
-         | _ => c
-         end
+  then opt_window c
   else let c' := match c with
                    | i1 :: i2 :: i3 :: i4 :: _ => i1 :: i2 :: i3 :: i4 :: nil
                    | _ => c  (* this isn't right, should fail *)
                  end   
        in
        let opt_c' := opt_window c' in
-       match opt_c', c with
-         | Some opt_c'', _::_::_::_::cs => opt_c'' ++ optimize cs
-         | _, _::_::_::_::cs => c' ++ optimize cs
-         | _, _ => c' (* again this isn't right, and it should fail instead *)
+       match c with
+         | i::x::y::z::cs => i :: optimize (x::y::zcs)
        end.
 
 (** Translation of a whole function.  Note that we must check
