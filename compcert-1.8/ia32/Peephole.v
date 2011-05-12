@@ -337,31 +337,31 @@ Proof.
  destruct (v PC). destruct (v0 PC). elimtype False. apply H0. reflexivity.
   
 
+Admitted.
 
-
-  case_eq (regs_eq v v0).  
-  intros. (* need lemma -- regs_eq v v0 = true -> v = v0 to allow rewrite. *)
-  apply regs_eq__eq in H. rewrite H. reflexivity.
-  intro.
-  f_equal.
-  f_equal.
+ (*  case_eq (regs_eq v v0).   *)
+ (*  intros. (* need lemma -- regs_eq v v0 = true -> v = v0 to allow rewrite. *) *)
+ (*  apply regs_eq__eq in H. rewrite H. reflexivity. *)
+ (*  intro. *)
+ (*  f_equal. *)
+ (*  f_equal. *)
   
 
 
-  apply regs_eq__eq.
-  apply regs_not_eq__not_eq in H. inversion H. 
-  contradiction H0.
-  assert (regs_eq v v0 = true).
+ (*  apply regs_eq__eq. *)
+ (*  apply regs_not_eq__not_eq in H. inversion H.  *)
+ (*  contradiction H0. *)
+ (*  assert (regs_eq v v0 = true). *)
 
-  induction x.
-    case_eq (v PC).
-    intros. rewrite <- H1.
-  Eval compute in ((Pregmap.init Vundef) PC).
- destruct (v PC). destruct (v0 PC). reflexivity. 
+ (*  induction x. *)
+ (*    case_eq (v PC). *)
+ (*    intros. rewrite <- H1. *)
+ (*  Eval compute in ((Pregmap.init Vundef) PC). *)
+ (* destruct (v PC). destruct (v0 PC). reflexivity.  *)
   
   
   
-
+End Status_Dec.
 
 (* the initial register state for a program:
 
@@ -369,3 +369,62 @@ Proof.
         # PC <- (symbol_offset ge p.(prog_main) Int.zero)
         # RA <- Vzero
         # ESP <- (Vptr Mem.nullptr Int.zero) *)
+
+
+(* Here I'll try again to show equivalence by assuming a fully
+populated set of registers in a Section and see if it works. *)
+
+Section test.
+
+  (* the initial values for each register *)
+  Variables eax ebx ecx edx esi edi ebp esp : val.
+  Variables xmm0 xmm1 xmm2 xmm3 xmm4 xmm5 xmm6 xmm7 : val.
+  Definition init_regs := (Pregmap.init Vundef)
+    # EAX <- eax
+    # EBX <- ebx.
+
+Eval simpl in (init_regs EAX). (* = init_regs EAX : val *)
+Eval compute in (init_regs EAX). (* = eax : val *)
+Eval compute in (init_regs # ECX <- ecx). (* = fun y : preg => if match ... *)
+Eval compute in ((init_regs # ECX <- ecx) ECX). (* = ecx : val *)
+Eval simpl in (Val.add eax ebx). (* = Val.add eax ebx *)
+(* Eval simpl in (Val.add eax ebx). (* = FAILS TO TERMINATE, looking for real values?? *)*)
+
+(* the above sort of blows things for this approach I think... *)
+
+End test.
+
+  
+
+(*Inductive ireg: Type :=
+  | EAX: ireg  | EBX: ireg  | ECX: ireg  | EDX: ireg
+  | ESI: ireg  | EDI: ireg  | EBP: ireg  | ESP: ireg.
+
+(** Floating-point registers, i.e. SSE2 registers *)
+
+Inductive freg: Type :=
+  | XMM0: freg  | XMM1: freg  | XMM2: freg  | XMM3: freg
+  | XMM4: freg  | XMM5: freg  | XMM6: freg  | XMM7: freg.
+
+Lemma ireg_eq: forall (x y: ireg), {x=y} + {x<>y}.
+Proof. decide equality. Defined.
+
+Lemma freg_eq: forall (x y: freg), {x=y} + {x<>y}.
+Proof. decide equality. Defined.
+
+(** Bits of the flags register.  [SOF] is a pseudo-bit representing
+  the "xor" of the [OF] and [SF] bits. *)
+
+Inductive crbit: Type := 
+  | ZF | CF | PF | SOF.
+
+(** All registers modeled here. *)
+
+Inductive preg: Type :=
+  | PC: preg                            (**r program counter *)
+  | IR: ireg -> preg                    (**r integer register *)
+  | FR: freg -> preg                    (**r XMM register *)
+  | ST0: preg                           (**r top of FP stack *)
+  | CR: crbit -> preg                   (**r bit of the flags register *)
+  | RA: preg.                   (**r pseudo-reg representing return address *)
+*) 
