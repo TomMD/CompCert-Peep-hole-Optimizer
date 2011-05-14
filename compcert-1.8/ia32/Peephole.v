@@ -400,10 +400,10 @@ Eval simpl in (init_regs # EAX <- (Val.add eax ebx)).
 (* works just fine. So maybe the thing to do is to leave the values parameterized and then show forall eax, ebx... foo = bar? *)
 
 (* executing a list of instructions *)
-Fixpoint exec_instrs (is: list instruction) (rs: regset) (m: mem) : outcome :=
-  match is with
+Fixpoint exec_instrs (c: code) (rs: regset) (m: mem) : outcome :=
+  match c with
     | nil => Next rs m
-    | i :: rest => match exec_instr ge is i rs m with
+    | i :: rest => match exec_instr ge c i rs m with
                     | Next rs' m' => exec_instrs rest rs' m'
                     | Stuck => Stuck
                    end
@@ -438,7 +438,7 @@ then we're proving that if the decision procedure says they're equal then they a
 Does this make sense? *)
 
 (* so, based on the above... *)
-Definition outcome_eq_dec  (o1 o2 : outcome) : bool.
+Definition outcome_regs_eq_dec  (o1 o2 : outcome) : bool.
   refine (fun o1 o2 =>
     match o1, o2 with
       | Stuck, Stuck => true
@@ -448,7 +448,7 @@ Definition outcome_eq_dec  (o1 o2 : outcome) : bool.
 Defined.
 
 Example foo1_2_eq : forall (eax ebx : val) ge,
-  outcome_eq_dec (foo1 eax ebx ge) (foo2 eax ebx ge) = true 
+  outcome_regs_eq_dec (foo1 eax ebx ge) (foo2 eax ebx ge) = true 
   -> (foo1 eax ebx ge) = (foo2 eax ebx ge). 
 Proof.
   intros.
@@ -470,39 +470,13 @@ Qed.
 
 (* woot! There's a proof of two pieces of code being equivalent, at least in terms of registers *)
 
+(* ultimately we want to prove somthing like this:
 
+Theorem outcome_eq__code_eq : forall (c1 c2 : code) (rs : regset) (m : mem) (ge : genv),
+  outcome_eq_dec (exec_instrs ge c1 rs m) (exec_instrs ge c2 rs m) = true
+  -> (exec_instrs ge c1 rs m) = (exec_instrs ge c2 rs m).
+
+where outcome_eq_dec is a combinatation of outcome_regs_eq_dec and outcome_mem_eq_dec.
+*)
 
   
-
-(*Inductive ireg: Type :=
-  | EAX: ireg  | EBX: ireg  | ECX: ireg  | EDX: ireg
-  | ESI: ireg  | EDI: ireg  | EBP: ireg  | ESP: ireg.
-
-(** Floating-point registers, i.e. SSE2 registers *)
-
-Inductive freg: Type :=
-  | XMM0: freg  | XMM1: freg  | XMM2: freg  | XMM3: freg
-  | XMM4: freg  | XMM5: freg  | XMM6: freg  | XMM7: freg.
-
-Lemma ireg_eq: forall (x y: ireg), {x=y} + {x<>y}.
-Proof. decide equality. Defined.
-
-Lemma freg_eq: forall (x y: freg), {x=y} + {x<>y}.
-Proof. decide equality. Defined.
-
-(** Bits of the flags register.  [SOF] is a pseudo-bit representing
-  the "xor" of the [OF] and [SF] bits. *)
-
-Inductive crbit: Type := 
-  | ZF | CF | PF | SOF.
-
-(** All registers modeled here. *)
-
-Inductive preg: Type :=
-  | PC: preg                            (**r program counter *)
-  | IR: ireg -> preg                    (**r integer register *)
-  | FR: freg -> preg                    (**r XMM register *)
-  | ST0: preg                           (**r top of FP stack *)
-  | CR: crbit -> preg                   (**r bit of the flags register *)
-  | RA: preg.                   (**r pseudo-reg representing return address *)
-*) 
