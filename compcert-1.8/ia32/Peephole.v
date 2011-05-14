@@ -470,6 +470,14 @@ Qed.
 
 (* woot! There's a proof of two pieces of code being equivalent, at least in terms of registers *)
 
+(* but is it true? *)
+Eval compute in 
+  (outcome_regs_eq_dec 
+    (foo1 Vone Vzero (Genv.empty_genv fundef unit)) 
+    (foo2 Vone Vzero (Genv.empty_genv fundef unit))). (* = true : bool *)
+(* so, it seems to hold in this case! That's good! *)
+
+  
 (* ultimately we want to prove somthing like this:
 
 Theorem outcome_eq__code_eq : forall (c1 c2 : code) (rs : regset) (m : mem) (ge : genv),
@@ -478,5 +486,8 @@ Theorem outcome_eq__code_eq : forall (c1 c2 : code) (rs : regset) (m : mem) (ge 
 
 where outcome_eq_dec is a combinatation of outcome_regs_eq_dec and outcome_mem_eq_dec.
 *)
+
+(* Memory equivalence... decision procedures, theorems and lemmas
+about proving that two memory states are equivalent. *)
 
   
