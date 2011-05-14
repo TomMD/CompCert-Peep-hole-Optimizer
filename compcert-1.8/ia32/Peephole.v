@@ -374,6 +374,7 @@ End Status_Dec.
 (* Here I'll try again to show equivalence by assuming a fully
 populated set of registers in a Section and see if it works. *)
 
+
 Section test.
 
   (* the initial values for each register *)
@@ -383,16 +384,93 @@ Section test.
     # EAX <- eax
     # EBX <- ebx.
 
+  Variable ge : genv.
+
 Eval simpl in (init_regs EAX). (* = init_regs EAX : val *)
 Eval compute in (init_regs EAX). (* = eax : val *)
 Eval compute in (init_regs # ECX <- ecx). (* = fun y : preg => if match ... *)
 Eval compute in ((init_regs # ECX <- ecx) ECX). (* = ecx : val *)
 Eval simpl in (Val.add eax ebx). (* = Val.add eax ebx *)
 (* Eval simpl in (Val.add eax ebx). (* = FAILS TO TERMINATE, looking for real values?? *)*)
-
+Eval simpl in ((init_regs # EAX <- (Val.divs (Vint (Int.repr 4)) (Vint (Int.repr 2)))) EAX).
 (* the above sort of blows things for this approach I think... *)
 
+(* or does it? *)
+Eval simpl in (init_regs # EAX <- (Val.add eax ebx)).
+(* works just fine. So maybe the thing to do is to leave the values parameterized and then show forall eax, ebx... foo = bar? *)
+
+(* executing a list of instructions *)
+Fixpoint exec_instrs (is: list instruction) (rs: regset) (m: mem) : outcome :=
+  match is with
+    | nil => Next rs m
+    | i :: rest => match exec_instr ge is i rs m with
+                    | Next rs' m' => exec_instrs rest rs' m'
+                    | Stuck => Stuck
+                   end
+  end.
+
+
+Definition foo1 := 
+  exec_instrs 
+    (Pmov_rr EAX EBX :: nil) 
+    init_regs
+    Mem.empty.
+
+Definition foo2 :=
+  exec_instrs
+    (Pmov_rr EAX EBX :: Pmov_rr EBX EAX :: nil) 
+    init_regs
+    Mem.empty.
+
 End test.
+
+
+(* messing around with the below, suggests that I need something more sophisticated...
+
+Example equiv_foo1_2_eq : forall (eax ebx : val) (ge : genv), foo1 eax ebx ge = foo2 eax ebx ge.
+
+I need to have a decision procedure for outcome equivalence. Then the example becomes
+
+outcome_eq_dec (foo1 eax ebx ge) (foo2 eax ebx ge) = true -> (foo1 eax ebx ge) = (foo2 eax ebx ge). 
+
+then we're proving that if the decision procedure says they're equal then they are equal. 
+
+Does this make sense? *)
+
+(* so, based on the above... *)
+Definition outcome_eq_dec  (o1 o2 : outcome) : bool.
+  refine (fun o1 o2 =>
+    match o1, o2 with
+      | Stuck, Stuck => true
+      | Next lrs lmem, Next rrs rmem => regs_eq lrs rrs
+      | _,_ => false
+    end).
+Defined.
+
+Example foo1_2_eq : forall (eax ebx : val) ge,
+  outcome_eq_dec (foo1 eax ebx ge) (foo2 eax ebx ge) = true 
+  -> (foo1 eax ebx ge) = (foo2 eax ebx ge). 
+Proof.
+  intros.
+  case_eq (foo1 eax ebx ge).
+  case_eq (foo2 eax ebx ge).
+  intros.
+  inversion H.
+  inversion H0.
+  inversion H1.
+  rewrite H6 in H3, H4.
+  rewrite H4 in H3.
+  apply regs_eq__eq in H3.
+  rewrite H6. rewrite H4. rewrite H3. reflexivity.
+  inversion H.
+  intros. discriminate.
+  intros. rewrite H0 in H.
+  inversion H.
+Qed.
+
+(* woot! There's a proof of two pieces of code being equivalent, at least in terms of registers *)
+
+
 
   
 
