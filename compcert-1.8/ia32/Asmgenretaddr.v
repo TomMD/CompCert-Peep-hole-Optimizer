@@ -17,11 +17,6 @@
     return addresses that are stored in activation records. *)
 
 (* uncomment below to enable proofgeneral loading of this file *)
-Add LoadPath "../common".
-Add LoadPath "../backend".
-Add LoadPath "../lib".
-Add LoadPath "./standard".
-
 Require Import Coqlib.
 Require Import Maps.
 Require Import AST.
@@ -225,7 +220,7 @@ Lemma transl_code_tail:
   forall tc1 tc2, transl_code f c1 = OK tc1 -> transl_code f c2 = OK tc2 ->
   is_tail tc1 tc2.
 Proof.
-  induction 1; simpl; intros.
+  induction 1; simpl; intros. 
   replace tc2 with tc1 by congruence. constructor.
   IsTail. apply is_tail_trans with x. eauto. eapply transl_instr_tail; eauto.
 Qed.
@@ -249,30 +244,13 @@ Proof.
            end) = (x)). admit.
   rewrite M0 in *.*)
 
-
-  destruct (zlt (list_length_z (optimize x)) Int.max_unsigned); monadInv EQ0.
-  (* This subgoal IS NOT (always) TRUE for the peephole optimized code
-     `is_tail t1 t2` means Exists [t] s.t.  [t] ++ [t1] == [t2].  If [t1]
-     gets optimized then this will not hold! *)
-  IsTail.
-  (* Handle the peep-hole optimizer! *)
-    assert (optimize x = x) as opt_x. admit.  (* For now this is true, later it will change *)
-  rewrite opt_x.
-  eapply transl_code_tail; eauto.
-  destruct (is_tail_code_tail _ _ H0) as [ofs A].
-  exists (Int.repr ofs). constructor; intros. congruence. 
-  intros. exists (Int.repr 0). constructor; intros; congruence.
-  intros. exists (Int.repr 0). constructor; intros; congruence.
-Qed.
-
-(* original proof *)(*
    destruct (zlt (list_length_z x) Int.max_unsigned); monadInv EQ0.
    IsTail. eapply transl_code_tail; eauto.
    destruct (is_tail_code_tail _ _ H0) as [ofs A].
    exists (Int.repr ofs). constructor; intros. congruence.
    intros. exists (Int.repr 0). constructor; intros; congruence.
    intros. exists (Int.repr 0). constructor; intros; congruence.
- Qed.*)
+ Qed.
 
  
 

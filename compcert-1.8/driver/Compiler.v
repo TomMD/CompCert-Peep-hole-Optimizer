@@ -50,6 +50,7 @@ Require Linearize.
 Require Reload.
 Require Stacking.
 Require Asmgen.
+Require Peephole.
 (** Type systems. *)
 Require RTLtyping.
 Require LTLtyping.
@@ -78,6 +79,7 @@ Require Stackingproof.
 Require Stackingtyping.
 Require Machabstr2concr.
 Require Asmgenproof.
+Require Peepholeproof.
 (** Pretty-printers (defined in Caml). *)
 Parameter print_Csyntax: Csyntax.program -> unit.
 Parameter print_Clight: Clight.program -> unit.
@@ -144,7 +146,8 @@ Definition transf_rtl_fundef (f: RTL.fundef) : res Asm.fundef :=
    @@ print print_LTLin
    @@ Reload.transf_fundef
   @@@ Stacking.transf_fundef
-  @@@ Asmgen.transf_fundef.
+  @@@ Asmgen.transf_fundef
+   @@ Peephole.transf_fundef.
 
 (* Here is the translation of a CminorSel function to an Asm function. *)
 
