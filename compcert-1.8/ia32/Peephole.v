@@ -594,25 +594,19 @@ simpl. unfold mem_test1. unfold mem_test2. simpl.
 case_eq (exec_store ge Mint32
        (Mem.mkmem mem_contents mem_access bounds nextblock nextblock_pos
           nextblock_noaccess bounds_noaccess noread_undef) add1 add_regs EDX).
-intros. unfold exec_store in *.  (* here I think I'm in pretty good shape in hyp H... but not sure where to go*)
+intros. unfold exec_store in *.  
+(* here I think I'm in pretty good shape in hyp H... but not sure where to go*)
+unfold Mem.storev in *. simpl in *. Transparent Mem.store. unfold Mem.store in *.
+simpl. simpl in *. case_eq (          Mem.valid_access_dec
+            (Mem.mkmem mem_contents mem_access bounds nextblock nextblock_pos
+               nextblock_noaccess bounds_noaccess noread_undef) Mint32
+            myblock
+            (Int.signed
+               (Int.add (Int.repr 0) (Int.add Int.zero (Int.repr 10))))
+            Writable). intro. intro. rewrite  H0 in H. simpl in *.
+inversion H. simpl. subst. (* wow, gettin' crazy!! need some lemmas about memory, fo' sho... *)
+(* but I think it's clear that this is true.... the version of the the memory contents with a single update is the same as the version with the double update because we're updating with the same value. so a lemma of the form:
 
+update x v (update x v f) = update x v f might be of use here. *)
+(* need to clean up some stuff first *)
 
-
-
-
-simpl. destruct (exec_store ge Mint32 m add1 r EDX).
-
-(* helps to have the code you're writing about visible...
-
-
-Definition exec_store (chunk: memory_chunk) (m: mem)
-                      (a: addrmode) (rs: regset) (r1: preg) :=
-  match Mem.storev chunk m (eval_addrmode a rs) (rs r1) with
-  | Some m' => Next (nextinstr_nf rs) m'
-  | None => Stuck
-  end.
-
-  | Pmov_mr a r1 =>
-      exec_store Mint32 m a rs r1
-
-*)
