@@ -490,4 +490,129 @@ where outcome_eq_dec is a combinatation of outcome_regs_eq_dec and outcome_mem_e
 (* Memory equivalence... decision procedures, theorems and lemmas
 about proving that two memory states are equivalent. *)
 
+(* a store instruction, Pmov_mr a r stores the contents of register r
+into the address a. and the instruction is implemented as:
+
+Mem.storev chunk mem (eval_addr a rs) (rs r). 
+
+The chunk is the "part" of memory to use: floating point, integer, etc.
+Let's look at these pieces: *)
+Section mem_test.
+  (* the initial values for each register *)
+  Variables eax ebx ecx edx esi edi ebp esp : val.
+  Variables xmm0 xmm1 xmm2 xmm3 xmm4 xmm5 xmm6 xmm7 : val.
+  Definition init_regs' := (Pregmap.init Vundef)
+    # EAX <- eax
+    # EBX <- ebx.
+
+  Variable ge : genv.
+
+Eval simpl in eval_addrmode ge (Addrmode None None (inl _ (Int.repr 10))) init_regs' .
+Eval compute in eval_addrmode ge (Addrmode None None (inl _ (Int.repr 10))) init_regs'.
+
+Eval simpl in eval_addrmode ge (Addrmode (Some EAX) None (inl _ (Int.repr 10))) init_regs' .
+
+(* I have been trying and failing to defined some kind of concrete
+memory state so I can see what these things look like.... here is
+another attempt... *)
+
+
+Definition mem_alloc := Mem.alloc Mem.empty 100 200.
+Eval compute in mem_alloc.
+Definition mymem' := fst mem_alloc.
+Eval compute in mymem'.
+Definition myblock := snd mem_alloc.
+Eval compute in myblock.
+
+
+Definition add_regs := init_regs' # ECX <- (Vptr myblock (Int.repr 0))
+  # EDX <- (Vint (Int.repr 25)).
+
+Eval compute in add_regs.
+Eval compute in (add_regs EDX).
+Eval compute in (add_regs ECX).
+
+Eval simpl in eval_addrmode ge (Addrmode (Some ECX) None (inl _ (Int.repr 10))) add_regs.
+Eval compute in eval_addrmode ge (Addrmode (Some ECX) None (inl _ (Int.repr 10))) add_regs.
+
+
+Definition add1 := (Addrmode (Some ECX) None (inl _ (Int.repr 10))).
+
+Eval simpl in Mem.storev Mint32 mymem' (eval_addrmode ge add1 add_regs) (add_regs EDX).
+Eval compute in Mem.storev Mint32 mymem' (eval_addrmode ge add1 add_regs) (add_regs EDX).
+
+
+
+
+
+Definition mem_test1 := 
+  exec_instrs
+    ge
+    (Pmov_mr add1 EDX :: nil) 
+    add_regs.
+
+Print mem_test1.
+Eval simpl in mem_test1.
+Eval compute in mem_test1.  (* works but is slow -- 4000 lines of coq in here *)
+
+(* this is certainly not true, but lets me look inside on of these memory things... *)
+Example test_mem_eq : forall m1 m2, mem_test1 m1 = mem_test1 m2.
+intro m1. induction m1.
+intro m2. induction m2.
+  simpl. simpl in *.
+  simpl. unfold mem_test1. simpl.
+  unfold exec_store. unfold Mem.storev. simpl. 
+  case_eq (Mem.store Mint32
+         (Mem.mkmem mem_contents mem_access bounds nextblock nextblock_pos
+            nextblock_noaccess bounds_noaccess noread_undef) myblock
+         (Int.signed (Int.add (Int.repr 0) (Int.add Int.zero (Int.repr 10))))
+         (add_regs EDX)).
+  intros.
+  case_eq (Mem.store Mint32
+       (Mem.mkmem mem_contents0 mem_access0 bounds0 nextblock0 nextblock_pos0
+          nextblock_noaccess0 bounds_noaccess0 noread_undef0) myblock
+       (Int.signed (Int.add (Int.repr 0) (Int.add Int.zero (Int.repr 10))))
+       (add_regs EDX)).
+  intros.
+  simpl in *.
+  f_equal.
+Admitted.
+
+(* from the above, I think we can parameterize over sets of memories and make it work... I'll try soon... somthing like: *)
   
+
+
+Definition mem_test2 := 
+  exec_instrs
+  ge
+  (Pmov_mr add1 EDX :: Pmov_mr add1 EDX :: nil)
+  add_regs.
+
+Example test_mem_eq_2 : forall m, mem_test1 m = mem_test2 m.
+intro m. induction m.
+simpl. unfold mem_test1. unfold mem_test2. simpl.
+case_eq (exec_store ge Mint32
+       (Mem.mkmem mem_contents mem_access bounds nextblock nextblock_pos
+          nextblock_noaccess bounds_noaccess noread_undef) add1 add_regs EDX).
+intros. unfold exec_store in *.  (* here I think I'm in pretty good shape in hyp H... but not sure where to go*)
+
+
+
+
+
+simpl. destruct (exec_store ge Mint32 m add1 r EDX).
+
+(* helps to have the code you're writing about visible...
+
+
+Definition exec_store (chunk: memory_chunk) (m: mem)
+                      (a: addrmode) (rs: regset) (r1: preg) :=
+  match Mem.storev chunk m (eval_addrmode a rs) (rs r1) with
+  | Some m' => Next (nextinstr_nf rs) m'
+  | None => Stuck
+  end.
+
+  | Pmov_mr a r1 =>
+      exec_store Mint32 m a rs r1
+
+*)
