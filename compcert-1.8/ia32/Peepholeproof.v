@@ -1,10 +1,3 @@
-
-(* Add LoadPath "../common". *)
-(* Add LoadPath "../backend". *)
-(* Add LoadPath "../lib". *)
-(* Add LoadPath "./standard". *)
-
-
 Require Import Coqlib.
 Require Import Maps.
 Require Import AST.
@@ -609,4 +602,6 @@ inversion H. simpl. subst. (* wow, gettin' crazy!! need some lemmas about memory
 
 update x v (update x v f) = update x v f might be of use here. *)
 (* need to clean up some stuff first *)
+Admitted.
 
+End mem_test.
