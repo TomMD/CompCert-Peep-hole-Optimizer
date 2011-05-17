@@ -13,33 +13,39 @@ Require Import Stacklayout.
 Require Import Conventions.
 Require Import Asm.
 
-Section Status_Dec.
+(** This section defines decision procedures for deciding equivalence of register sets **)
+Section Register_Dec.
 
-Variable ge : genv.
-
-Lemma int_eq_true : forall x y, Int.eq x y = true -> x = y.
-Proof.
-  intros.
-  destruct (Int.eq_dec x y). trivial.  apply Int.eq_false in n. rewrite H in n. inversion n.
-Qed.
+  Variable ge : genv.
 
 
-Lemma eq_int_int__eq_z : forall x y, 
-  @eq Int.int x y -> @eq Z (Int.unsigned x) (Int.unsigned y).
-Proof.
-  intros. f_equal. assumption.
-Qed.
+  Lemma int_eq_true : forall x y, Int.eq x y = true -> x = y.
+  Proof.
+    intros.
+    destruct (Int.eq_dec x y). 
+    trivial.  
+    apply Int.eq_false in n. 
+    rewrite H in n. 
+    inversion n.
+  Qed.
 
-Lemma int_eq_false : forall x y, Int.eq x y = false -> x <> y.
-Proof.
-  intros. case_eq (Int.eq x y); intros.
-  rewrite H0 in H. inversion H.
-  unfold not. intro. unfold Int.eq in H0.
-  destruct (zeq (Int.unsigned x) (Int.unsigned y)). inversion H0. apply n.
-  apply eq_int_int__eq_z. assumption.
-Qed.
+  Lemma eq_int_int__eq_z : forall x y, 
+    @eq Int.int x y -> @eq Z (Int.unsigned x) (Int.unsigned y).
+  Proof.
+    intros. f_equal. assumption.
+  Qed.
 
-Definition val_eq (v1 v2 : val) : bool.
+  Lemma int_eq_false : forall x y, Int.eq x y = false -> x <> y.
+  Proof.
+    intros. case_eq (Int.eq x y); intros.
+    rewrite H0 in H. inversion H.
+    unfold not. intro. unfold Int.eq in H0.
+    destruct (zeq (Int.unsigned x) (Int.unsigned y)). inversion H0. apply n.
+    apply eq_int_int__eq_z. assumption.
+  Qed.
+
+  (** a boolean equality predicate for values **)
+  Definition val_eq (v1 v2 : val) : bool.
   refine (fun v1 v2 => 
     match v1 with
       | Vundef => match v2 with
@@ -61,52 +67,49 @@ Definition val_eq (v1 v2 : val) : bool.
                       | _ => false
                     end
     end). 
-Defined.
+  Defined.
 
-Definition val_eq_dec (v1  v2 : val) : {v1 = v2} + {v1 <> v2}.
-  refine (fun v1 v2 => (if val_eq v1 v2 as b return (val_eq v1 v2 = b -> {v1 = v2} + {v1 <> v2})
- then fun H : val_eq v1 v2 = true => Utils.in_left
- else fun H : val_eq v1 v2 = false => Utils.in_right)
-  (refl_equal (val_eq v1 v2))). 
-
-induction v1; induction v2; intros; simpl; try discriminate; try reflexivity. f_equal. apply int_eq_true. unfold val_eq in H. assumption.
-
-unfold val_eq in *. case_eq (Float.eq_dec f f0); intros. f_equal. assumption. f_equal. rewrite H0 in H. inversion H. f_equal; unfold val_eq in *. destruct (zeq b b0). assumption. inversion H.
-destruct (zeq b b0). apply int_eq_true. assumption.  inversion H.
-
-induction v1; induction v2; intros; simpl; try discriminate; try reflexivity. unfold val_eq in *.
-unfold Int.eq in *.  destruct (zeq(Int.unsigned i) (Int.unsigned i0)). inversion H. 
-unfold not in *.
-intro. apply n. f_equal. inversion H0. reflexivity.
-
-unfold val_eq in H. case_eq (Float.eq_dec f f0); intros. rewrite H0 in H. inversion H.
-unfold not. intros. apply n. inversion H1. reflexivity.
-
-unfold val_eq in H. case_eq (zeq b b0).
-
-intros. rewrite H0 in H. unfold not. intro. inversion H1.
-apply int_eq_false in H. apply H. assumption.
-
-intros. unfold not. intro. inversion H1. apply n. assumption.
-Defined.
-
-Eval simpl in (val_eq_dec Vundef Vundef).
-Eval compute in (val_eq_dec Vundef Vundef).
-Eval compute in (val_eq_dec Vundef Vzero).
-(* appears to work *)
-
-
-Theorem val_eq_correct : forall (v1 v2 : val), val_eq v1 v2 = true -> v1 = v2.
-Proof.
-  intro v1.
-  intros.
-  case_eq (val_eq_dec v1 v2). intros. assumption.
-  intros. induction v1; induction v2; intros; try reflexivity; try discriminate. inversion H. 
+  (** a decision procedure for value equality **)
+  Definition val_eq_dec (v1  v2 : val) : {v1 = v2} + {v1 <> v2}.
+  refine (fun v1 v2 => 
+    (if val_eq v1 v2 as b return (val_eq v1 v2 = b -> {v1 = v2} + {v1 <> v2})
+      then fun H : val_eq v1 v2 = true => Utils.in_left
+      else fun H : val_eq v1 v2 = false => Utils.in_right)
+    (refl_equal (val_eq v1 v2))).
+  unfold val_eq in *.
+  induction v1; induction v2; intros; simpl; try discriminate; try reflexivity.
   f_equal; apply int_eq_true; assumption.
-  inversion H. destruct (Float.eq_dec f f0). f_equal; auto. inversion H2.
-  inversion H.  destruct (zeq b b0); f_equal. assumption. apply int_eq_true. assumption.
-  inversion H2. inversion H2.
-Qed.
+  case_eq (Float.eq_dec f f0); intros; f_equal.
+  assumption.
+  rewrite H0 in H; inversion H.
+  destruct (zeq b b0). f_equal. assumption. apply int_eq_true;assumption.
+  inversion H. 
+  
+  unfold val_eq in *.
+  induction v1; induction v2; intros; simpl; try discriminate; try reflexivity; unfold not.
+  unfold Int.eq in *; destruct (zeq (Int.unsigned i) (Int.unsigned i0)). 
+  inversion H.
+  intro; apply n. inversion H0; auto.
+  case_eq (Float.eq_dec f f0); intros.
+  rewrite H0 in H; inversion H.
+  apply n; inversion H1; auto.
+  case_eq (zeq b b0); intros. rewrite H0 in H.
+  apply int_eq_false in H. apply H; inversion H1; auto.
+  apply n; inversion H1; auto.
+  Defined.
+
+  (** show that the val_eq predicate is correct: val_eq v1 v2 = true if v1 = v2 *)
+  Theorem val_eq_correct : forall (v1 v2 : val), val_eq v1 v2 = true -> v1 = v2.
+  Proof.
+    intro v1.
+    intros.
+    case_eq (val_eq_dec v1 v2). intros. assumption.
+    intros. induction v1; induction v2; intros; try reflexivity; try discriminate. inversion H. 
+    f_equal; apply int_eq_true; assumption.
+    inversion H. destruct (Float.eq_dec f f0). f_equal; auto. inversion H2.
+    inversion H.  destruct (zeq b b0); f_equal. assumption. apply int_eq_true. assumption.
+    inversion H2. inversion H2.
+  Qed.
  
 
 
@@ -144,231 +147,140 @@ Qed.
 
 *)
 
-Definition reg_eq (r : preg) (rs1 rs2 : regset) : {rs1 r = rs2 r} + {rs1 r <> rs2 r}.
-  refine (fun r rs1 rs2 => val_eq_dec (rs1 r) (rs2 r)).
-Defined.
+  Definition reg_eq (r : preg) (rs1 rs2 : regset) : {rs1 r = rs2 r} + {rs1 r <> rs2 r}.
+    refine (fun r rs1 rs2 => val_eq_dec (rs1 r) (rs2 r)).
+  Defined.
 
-Notation "x &&& y" := (if x then if y then true else false else false).
+  Notation "x &&& y" := (if x then if y then true else false else false).
 
+  (** a boolean equality predicate for complete register sets **)
+  Definition regs_eq (rs1 rs2 : regset) : bool.
+    refine (fun rs1 rs2 =>  
+      reg_eq PC rs1 rs2 &&&
+      reg_eq ST0 rs1 rs2 &&&
+      reg_eq RA rs1 rs2 &&&
+      reg_eq EAX rs1 rs2 &&&
+      reg_eq EBX rs1 rs2 &&&
+      reg_eq ECX rs1 rs2 &&&
+      reg_eq EDX rs1 rs2 &&&
+      reg_eq ESI rs1 rs2 &&&
+      reg_eq EDI rs1 rs2 &&&
+      reg_eq EBP rs1 rs2 &&&
+      reg_eq ESP rs1 rs2 &&&
+      reg_eq XMM0 rs1 rs2 &&&
+      reg_eq XMM1 rs1 rs2 &&&
+      reg_eq XMM2 rs1 rs2 &&&
+      reg_eq XMM3 rs1 rs2 &&&
+      reg_eq XMM4 rs1 rs2 &&&
+      reg_eq XMM5 rs1 rs2 &&&
+      reg_eq XMM6 rs1 rs2 &&&
+      reg_eq XMM7 rs1 rs2 &&&
+      reg_eq ZF rs1 rs2 &&&
+      reg_eq CF rs1 rs2 &&&
+      reg_eq PF rs1 rs2 &&&
+      reg_eq SOF rs1 rs2).
+  Defined.
 
-Definition regs_eq (rs1 rs2 : regset) : bool.
-  refine (fun rs1 rs2 =>  
-    reg_eq PC rs1 rs2 &&&
-    reg_eq ST0 rs1 rs2 &&&
-    reg_eq RA rs1 rs2 &&&
-    reg_eq EAX rs1 rs2 &&&
-    reg_eq EBX rs1 rs2 &&&
-    reg_eq ECX rs1 rs2 &&&
-    reg_eq EDX rs1 rs2 &&&
-    reg_eq ESI rs1 rs2 &&&
-    reg_eq EDI rs1 rs2 &&&
-    reg_eq EBP rs1 rs2 &&&
-    reg_eq ESP rs1 rs2 &&&
-    reg_eq XMM0 rs1 rs2 &&&
-    reg_eq XMM1 rs1 rs2 &&&
-    reg_eq XMM2 rs1 rs2 &&&
-    reg_eq XMM3 rs1 rs2 &&&
-    reg_eq XMM4 rs1 rs2 &&&
-    reg_eq XMM5 rs1 rs2 &&&
-    reg_eq XMM6 rs1 rs2 &&&
-    reg_eq XMM7 rs1 rs2 &&&
-    reg_eq ZF rs1 rs2 &&&
-    reg_eq CF rs1 rs2 &&&
-    reg_eq PF rs1 rs2 &&&
-    reg_eq SOF rs1 rs2).
-Defined.
+  (** this stupid lemma proves useful, but surely could be done some other way? *)
+  Lemma if_falses : forall b : bool,
+    (if b then false else false) = false.
+  Proof.
+    intro b. induction b; auto.
+  Qed.
 
-Lemma if_falses : forall b : bool,
-  (if b then false else false) = false.
-Proof.
-  intro b. induction b; auto.
-Qed.
+  (** this theorem says that if the boolean equality predicate is
+  true, then any register in the two sets is equal **)
+  Theorem rs_eq__r_eq : forall  (r : preg) (rs1 rs2 : regset), 
+    regs_eq rs1 rs2 = true -> rs1 r = rs2 r.
+  Proof.
+    intro r. induction r; intros; unfold regs_eq in H.
+    destruct (reg_eq PC rs1 rs2). auto. inversion H.
+    
+    induction i; intros;
+      match goal with
+        | |- ?RS1 ?R = ?RS2 _ => destruct (reg_eq R RS1 RS2)
+      end; auto; rewrite if_falses in *; inversion H.
+    
+    induction f; intros;
+      match goal with
+        | |- ?RS1 ?R = ?RS2 _ => destruct (reg_eq R RS1 RS2)
+      end; auto; rewrite if_falses in *; inversion H.
+    
+    destruct (reg_eq ST0 rs1 rs2). auto. destruct (reg_eq PC rs1 rs2); inversion H.
+    
+    induction c; intros;
+      match goal with
+        | |- ?RS1 ?R = ?RS2 _ => destruct (reg_eq R RS1 RS2)
+      end; auto; rewrite if_falses in *; inversion H.
+    
+    destruct (reg_eq RA rs1 rs2). auto. rewrite if_falses in H. inversion H.
+  Qed.
 
-Theorem rs_eq__r_eq : forall  (r : preg) (rs1 rs2 : regset), 
-  regs_eq rs1 rs2 = true -> rs1 r = rs2 r.
-Proof.
-  intro r. induction r; intros; unfold regs_eq in H.
-  destruct (reg_eq PC rs1 rs2). auto. inversion H.
+  (** I thought this was needed at some point, but apparently not *)
+  Theorem rs_eq__r_eq2 : forall rs1 rs2,
+    regs_eq rs1 rs2 = true -> forall r, rs1 r = rs2 r.
+  Proof.
+    intros. induction r;
+    apply rs_eq__r_eq; assumption.
+  Qed.
 
-  induction i; intros;
-  match goal with
-    | |- ?RS1 ?R = ?RS2 _ => destruct (reg_eq R RS1 RS2)
-  end; auto; rewrite if_falses in *; inversion H.
+  (** the next lemma states equality for complete register sets, but
+  register sets are really functions... hence we import
+  FunctionalExtensionality. This will likely be useful later in the
+  memory proofs as well... *)
+  Require Import Coq.Logic.FunctionalExtensionality.
 
-  induction f; intros;
-  match goal with
-    | |- ?RS1 ?R = ?RS2 _ => destruct (reg_eq R RS1 RS2)
-  end; auto; rewrite if_falses in *; inversion H.
+  (** this lemma is perhaps a theorem instead, but anyway, if the
+  regs_eq predicate returns true then truly, the two register sets are
+  equal **)
+  Lemma regs_eq__eq : forall rs1 rs2 : regset,
+    regs_eq rs1 rs2 = true -> rs1 = rs2.
+  Proof.
+    intros.
+    assert (forall r, rs1 r = rs2 r).
+    intros. apply rs_eq__r_eq. apply H. 
+    apply functional_extensionality. assumption.
+  Qed.
+
+  (** some interesting side bits that are unused in the end **)
+  Lemma reg_not_eq__regs_not_eq : forall rs1 rs2,
+    (exists r, rs1 r <> rs2 r) -> regs_eq rs1 rs2 = false.
+    intros.
+    case_eq (regs_eq rs1 rs2).
+    intros. inversion H. elimtype False.
+    apply H1. apply rs_eq__r_eq. assumption.
+    intros. reflexivity.
+  Qed. 
   
-  destruct (reg_eq ST0 rs1 rs2). auto. destruct (reg_eq PC rs1 rs2); inversion H.
+  (** this one is Admitted, though it's surely true. Needs something like pigeon-hole. *)
+  Lemma regs_not_eq__not_eq : forall rs1 rs2 : regset,
+    regs_eq rs1 rs2 = false -> exists r, rs1 r <> rs2 r.
+  Proof.
+    intros.
+    case_eq (regs_eq rs1 rs2). intros.
+    rewrite H in H0. inversion H0.
+    intros. clear H0.
+    
+    eexists.
+    unfold not.
+    intros. unfold regs_eq in H.
+  Admitted.
 
-  induction c; intros;
-  match goal with
-    | |- ?RS1 ?R = ?RS2 _ => destruct (reg_eq R RS1 RS2)
-  end; auto; rewrite if_falses in *; inversion H.
+  (** given two outcomes, decide if they are equivalent for register sets **)
+  Definition outcome_regs_eq_dec  (o1 o2 : outcome) : bool.
+    refine (fun o1 o2 =>
+      match o1, o2 with
+        | Stuck, Stuck => true
+        | Next lrs lmem, Next rrs rmem => regs_eq lrs rrs
+        | _,_ => false
+      end).
+  Defined.
 
-  destruct (reg_eq RA rs1 rs2). auto. rewrite if_falses in H. inversion H.
-Qed.
-
-Theorem rs_eq__r_eq2 : forall rs1 rs2,
-  regs_eq rs1 rs2 = true -> forall r, rs1 r = rs2 r.
-Proof.
-  intros. induction r;
-  apply rs_eq__r_eq; assumption.
-Qed.
-
-Lemma regs_eq__eq : forall rs1 rs2 : regset,
-  regs_eq rs1 rs2 = true -> rs1 = rs2.
-Proof.
-  intros.
-  assert (forall r, rs1 r = rs2 r).
-  intros. apply rs_eq__r_eq. apply H. 
-Require Import Coq.Logic.FunctionalExtensionality.
-  apply functional_extensionality. assumption.
-Qed.
-
-
-Lemma reg_not_eq__regs_not_eq : forall rs1 rs2,
-  (exists r, rs1 r <> rs2 r) -> regs_eq rs1 rs2 = false.
-  intros.
-  case_eq (regs_eq rs1 rs2).
-  intros. inversion H. elimtype False.
-  apply H1. apply rs_eq__r_eq. assumption.
-  intros. reflexivity.
-Qed.
   
-Lemma regs_not_eq__not_eq : forall rs1 rs2 : regset,
-  regs_eq rs1 rs2 = false -> exists r, rs1 r <> rs2 r.
-Proof.
-  intros.
-  case_eq (regs_eq rs1 rs2). intros.
-  rewrite H in H0. inversion H0.
-  intros. clear H0.
-  
-  eexists.
-  unfold not.
-  intros. unfold regs_eq in H.
-Admitted.
-  
+End Register_Dec.
 
-(*Inductive ireg: Type :=
-  | EAX: ireg  | EBX: ireg  | ECX: ireg  | EDX: ireg
-  | ESI: ireg  | EDI: ireg  | EBP: ireg  | ESP: ireg.
-
-(** Floating-point registers, i.e. SSE2 registers *)
-
-Inductive freg: Type :=
-  | XMM0: freg  | XMM1: freg  | XMM2: freg  | XMM3: freg
-  | XMM4: freg  | XMM5: freg  | XMM6: freg  | XMM7: freg.
-
-Lemma ireg_eq: forall (x y: ireg), {x=y} + {x<>y}.
-Proof. decide equality. Defined.
-
-Lemma freg_eq: forall (x y: freg), {x=y} + {x<>y}.
-Proof. decide equality. Defined.
-
-(** Bits of the flags register.  [SOF] is a pseudo-bit representing
-  the "xor" of the [OF] and [SF] bits. *)
-
-Inductive crbit: Type := 
-  | ZF | CF | PF | SOF.
-
-(** All registers modeled here. *)
-
-Inductive preg: Type :=
-  | PC: preg                            (**r program counter *)
-  | IR: ireg -> preg                    (**r integer register *)
-  | FR: freg -> preg                    (**r XMM register *)
-  | ST0: preg                           (**r top of FP stack *)
-  | CR: crbit -> preg                   (**r bit of the flags register *)
-  | RA: preg.                   (**r pseudo-reg representing return address *)
-*) 
-  
-
-(* work an example *)
-
-Eval compute in (exec_instr ge nil (Pmov_rr EAX EBX) ((Pregmap.init Vundef)#EAX <- Vzero) Mem.empty).
-Definition exec1 := 
-  exec_instr ge
-    nil 
-    (Pmov_rr EAX EBX) 
-    (((Pregmap.init Vundef)#EAX <- Vzero) # EBX <- Vzero)
-    Mem.empty.
-
-Definition exec2 := 
-  exec_instr ge
-    nil 
-    (Pmov_rr EBX EAX) 
-    (((Pregmap.init Vundef)#EAX <- Vzero) # EBX <- Vzero)
-    Mem.empty.
-
-Eval compute in (((Pregmap.init Vundef) # EAX <- Vzero) EAX).
-Eval simpl in ((Pregmap.init Vundef) = (Pregmap.init Vundef)).
-
-Lemma initregs_undef : forall r,
-  (Pregmap.init Vundef) r = Vundef. 
-Proof.
-  intros. induction r; reflexivity.
-Qed.
-
-Example test : exec1 = exec2.
-Proof.
-  simpl. unfold exec1. unfold exec2. simpl. 
-  remember ((((Pregmap.init Vundef) # EAX <- Vzero) # EBX <- Vzero) # EAX <-
-        (((Pregmap.init Vundef) # EAX <- Vzero) # EBX <- Vzero EBX)).
-  remember ((((Pregmap.init Vundef) # EAX <- Vzero) # EBX <- Vzero) # EBX <-
-        (((Pregmap.init Vundef) # EAX <- Vzero) # EBX <- Vzero EAX)).
-  f_equal. f_equal.
-  apply regs_eq__eq.
-  case_eq (regs_eq v v0).
-  intros. reflexivity.
-  intros.
- rewrite <- H.    
- apply regs_not_eq__not_eq in H. 
- inversion H.
- induction x.
- destruct (v PC). destruct (v0 PC). elimtype False. apply H0. reflexivity.
-  
-
-Admitted.
-
- (*  case_eq (regs_eq v v0).   *)
- (*  intros. (* need lemma -- regs_eq v v0 = true -> v = v0 to allow rewrite. *) *)
- (*  apply regs_eq__eq in H. rewrite H. reflexivity. *)
- (*  intro. *)
- (*  f_equal. *)
- (*  f_equal. *)
-  
-
-
- (*  apply regs_eq__eq. *)
- (*  apply regs_not_eq__not_eq in H. inversion H.  *)
- (*  contradiction H0. *)
- (*  assert (regs_eq v v0 = true). *)
-
- (*  induction x. *)
- (*    case_eq (v PC). *)
- (*    intros. rewrite <- H1. *)
- (*  Eval compute in ((Pregmap.init Vundef) PC). *)
- (* destruct (v PC). destruct (v0 PC). reflexivity.  *)
-  
-  
-  
-End Status_Dec.
-
-(* the initial register state for a program:
-
-        (Pregmap.init Vundef)
-        # PC <- (symbol_offset ge p.(prog_main) Int.zero)
-        # RA <- Vzero
-        # ESP <- (Vptr Mem.nullptr Int.zero) *)
-
-
-(* Here I'll try again to show equivalence by assuming a fully
-populated set of registers in a Section and see if it works. *)
-
-
-Section test.
+(* here we test our decision procedures on a simple example *)
+Section Test_Dec.
 
   (* the initial values for each register *)
   Variables eax ebx ecx edx esi edi ebp esp : val.
@@ -379,43 +291,31 @@ Section test.
 
   Variable ge : genv.
 
-Eval simpl in (init_regs EAX). (* = init_regs EAX : val *)
-Eval compute in (init_regs EAX). (* = eax : val *)
-Eval compute in (init_regs # ECX <- ecx). (* = fun y : preg => if match ... *)
-Eval compute in ((init_regs # ECX <- ecx) ECX). (* = ecx : val *)
-Eval simpl in (Val.add eax ebx). (* = Val.add eax ebx *)
-(* Eval simpl in (Val.add eax ebx). (* = FAILS TO TERMINATE, looking for real values?? *)*)
-Eval simpl in ((init_regs # EAX <- (Val.divs (Vint (Int.repr 4)) (Vint (Int.repr 2)))) EAX).
-(* the above sort of blows things for this approach I think... *)
 
-(* or does it? *)
-Eval simpl in (init_regs # EAX <- (Val.add eax ebx)).
-(* works just fine. So maybe the thing to do is to leave the values parameterized and then show forall eax, ebx... foo = bar? *)
-
-(* executing a list of instructions *)
-Fixpoint exec_instrs (c: code) (rs: regset) (m: mem) : outcome :=
-  match c with
-    | nil => Next rs m
-    | i :: rest => match exec_instr ge c i rs m with
-                    | Next rs' m' => exec_instrs rest rs' m'
-                    | Stuck => Stuck
-                   end
-  end.
+  (* executing a list of instructions *)
+  Fixpoint exec_instrs (c: code) (rs: regset) (m: mem) : outcome :=
+    match c with
+      | nil => Next rs m
+      | i :: rest => match exec_instr ge c i rs m with
+                       | Next rs' m' => exec_instrs rest rs' m'
+                       | Stuck => Stuck
+                     end
+    end.
 
 
-Definition foo1 := 
-  exec_instrs 
+  Definition foo1 := 
+    exec_instrs 
     (Pmov_rr EAX EBX :: nil) 
     init_regs
     Mem.empty.
-
-Definition foo2 :=
-  exec_instrs
+  
+  Definition foo2 :=
+    exec_instrs
     (Pmov_rr EAX EBX :: Pmov_rr EBX EAX :: nil) 
     init_regs
     Mem.empty.
 
-End test.
+End Test_Dec.
 
 
 (* messing around with the below, suggests that I need something more sophisticated...
@@ -431,14 +331,6 @@ then we're proving that if the decision procedure says they're equal then they a
 Does this make sense? *)
 
 (* so, based on the above... *)
-Definition outcome_regs_eq_dec  (o1 o2 : outcome) : bool.
-  refine (fun o1 o2 =>
-    match o1, o2 with
-      | Stuck, Stuck => true
-      | Next lrs lmem, Next rrs rmem => regs_eq lrs rrs
-      | _,_ => false
-    end).
-Defined.
 
 Example foo1_2_eq : forall (eax ebx : val) ge,
   outcome_regs_eq_dec (foo1 eax ebx ge) (foo2 eax ebx ge) = true 
