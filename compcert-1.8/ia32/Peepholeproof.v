@@ -276,6 +276,14 @@ Section Register_Dec.
       end).
   Defined.
 
+  (** the real correctness proof we need -- if the decision procedure
+  for outcome register equality returns true, then the register sets
+  in those outcomes are equal **)
+  Theorem outcome_regs_eq_dec_correct : forall (rs1 rs2 : regset) (m1 m2 : mem),
+    outcome_regs_eq_dec (Next rs1 m1) (Next rs2 m2) = true -> rs1 = rs2.
+  Proof.
+    intros. inversion H. apply regs_eq__eq; auto.
+  Qed.
   
 End Register_Dec.
 
@@ -391,6 +399,8 @@ Section mem_test.
     # EBX <- ebx.
 
   Variable ge : genv.
+
+(* below here be madness.... *)
 
 Eval simpl in eval_addrmode ge (Addrmode None None (inl _ (Int.repr 10))) init_regs' .
 Eval compute in eval_addrmode ge (Addrmode None None (inl _ (Int.repr 10))) init_regs'.
