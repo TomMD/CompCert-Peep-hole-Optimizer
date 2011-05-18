@@ -13,6 +13,22 @@ Require Import Mach.
 Require Import Asm.
 Require Import Coq.ZArith.Zbool.
 
+(*
+Inductive Loc : Type :=
+  Register | Memory | Imm.
+
+Inductive SymInstr : Type :=
+  | add  : Loc -> Loc -> SymInstr
+  | sub  : Loc -> Loc -> SymInstr
+  | mult : Loc -> Loc -> SymInstr
+  | div  : Loc -> Loc -> SymInstr
+  | shiftL : Loc -> Loc -> SymInstr
+  | shiftR : Loc -> Loc -> SymInstr
+  | 
+  .
+
+*)
+
 (** peephole_validate validates the code optimized by the untrusted
   optimizer is semantically correct.  We only need to prove that
   peephole_validate returns true only when the two inputs are
@@ -50,3 +66,6 @@ Definition transf_function (f: Asm.code) : res Asm.code :=
 
 Definition transf_fundef (f : Asm.fundef) : res Asm.fundef :=
   transf_partial_fundef transf_function f.
+
+Definition peephole_transf_program (p : Asm.program) : res Asm.program :=
+  transform_partial_program transf_fundef p.
