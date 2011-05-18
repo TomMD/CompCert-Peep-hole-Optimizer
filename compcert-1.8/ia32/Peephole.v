@@ -14,20 +14,58 @@ Require Import Asm.
 Require Import Coq.ZArith.Zbool.
 
 (*
-Inductive Loc : Type :=
-  Register | Memory | Imm.
+mov r1 (r2);      -- r1 <- mem_0 r2_0
+add r2 4;         -- r2 <- r2_0 - 4
+sub r2 4;         -- r2 <- r2_0 - 4 + 4
+mov (r2) r1;      -- mem <- (r2_0 - 4 + 4, mem_0 r2_0) :: mem_0
 
-Inductive SymInstr : Type :=
-  | add  : Loc -> Loc -> SymInstr
-  | sub  : Loc -> Loc -> SymInstr
-  | mult : Loc -> Loc -> SymInstr
-  | div  : Loc -> Loc -> SymInstr
-  | shiftL : Loc -> Loc -> SymInstr
-  | shiftR : Loc -> Loc -> SymInstr
-  | 
-  .
+=================
 
+mov r1 (r2);      -- r1 <- mem_0 r2 0
+
+mem' == mem
+mem_0  == (r2_0 - 4 + 4, mem_0 r2_0) ::  mem_0
+mem_0 == (r2_0, mem_0 r2_0) :: mem_0
+
+rs' = rs
+r2_0 = - r2_0 - 4 + 4
 *)
+
+Inductive Loc : Type :=
+  | Register : preg -> Loc
+  | Memory   : addrmode -> Loc.
+
+Inductive SymExpr : Type :=
+  (* Integers *)
+  | add    : SymExpr -> SymExpr -> SymExpr
+  | sub    : SymExpr -> SymExpr -> SymExpr
+  | mult   : SymExpr -> SymExpr -> SymExpr
+  | div_unsigned : SymExpr -> SymExpr -> SymExpr
+  | div_signed   : SymExpr -> SymExpr -> SymExpr
+  | shiftR : SymExpr -> SymExpr -> SymExpr
+  | shiftR_unsigned : SymExpr -> SymExpr -> SymExpr
+  | and    : SymExpr -> SymExpr -> SymExpr
+  | or     : SymExpr -> SymExpr -> SymExpr
+  | neg    : SymExpr -> SymExpr
+  | xor    : SymExpr -> SymExpr -> SymExpr
+  (* Tests *)
+  | cmp    : SymExpr -> SymExpr -> SymExpr
+  | test   : SymExpr -> SymExpr -> SymExpr  (* modifies x86 status register! *) 
+  (* Floating *)
+  | add_f  : SymExpr -> SymExpr -> SymExpr
+  | sub_f  : SymExpr -> SymExpr -> SymExpr
+  | mult_f : SymExpr -> SymExpr -> SymExpr
+  | div_f  : SymExpr -> SymExpr -> SymExpr
+  | abs_f  : SymExpr -> SymExpr -> SymExpr
+  | neg_f  : SymExpr -> SymExpr -> SymExpr
+  | Symbol : Loc -> SymExpr
+  | Imm    : val -> SymExpr.
+
+Definition ValMap := Loc -> SymExpr.
+
+Definition symExec (c : code) : ValMap. Admitted.
+
+Definition sameSymbolicExecution (c : code) (d : code) : bool. Admitted.
 
 (** peephole_validate validates the code optimized by the untrusted
   optimizer is semantically correct.  We only need to prove that
@@ -39,7 +77,7 @@ Inductive SymInstr : Type :=
 Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) : bool :=
   if Zlt_bool (list_length_z c) (list_length_z d)
     then false
-    else false.  (* TMD Insert real validator here, in the 'else' branch *)
+    else sameSymbolicExecution (symExec c) (symExec d).
 
 Parameter ml_optimize : Asm.code -> Asm.code.
 
