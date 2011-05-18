@@ -11,6 +11,7 @@ Require Import Smallstep.
 Require Import Locations.
 Require Import Stacklayout.
 Require Import Conventions.
+Require Import Peephole.
 Require Import Asm.
 
 (** This section defines decision procedures for deciding equivalence of register sets **)
@@ -507,3 +508,17 @@ update x v (update x v f) = update x v f might be of use here. *)
 Admitted.
 
 End mem_test.
+
+Section PRESERVATION.
+
+Variable prog: Asm.program.
+Variable tprog: Asm.program.
+Hypothesis TRANSF: peephole_transf_program prog = Errors.OK tprog.
+
+Theorem transf_program_correct
+  forall (beh: program_behavior), not_wrong beh ->
+  Asm.exec_program prog beh -> Asm.exec_program tprog beh.
+Proof.
+Admitted.
+
+End PRESERVATION.
