@@ -515,7 +515,7 @@ Variable prog: Asm.program.
 Variable tprog: Asm.program.
 Hypothesis TRANSF: peephole_transf_program prog = Errors.OK tprog.
 
-Theorem transf_program_correct
+Theorem transf_program_correct :
   forall (beh: program_behavior), not_wrong beh ->
   Asm.exec_program prog beh -> Asm.exec_program tprog beh.
 Proof.
