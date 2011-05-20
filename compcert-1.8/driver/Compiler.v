@@ -147,7 +147,7 @@ Definition transf_rtl_fundef (f: RTL.fundef) : res Asm.fundef :=
    @@ Reload.transf_fundef
   @@@ Stacking.transf_fundef
   @@@ Asmgen.transf_fundef
-   @@ Peephole.transf_fundef.
+  @@@ Peephole.transf_fundef.
 
 (* Here is the translation of a CminorSel function to an Asm function. *)
 
@@ -306,7 +306,7 @@ Proof.
   generalize Alloctyping.program_typing_preserved Tunnelingtyping.program_typing_preserved
              Linearizetyping.program_typing_preserved Reloadtyping.program_typing_preserved
              Stackingtyping.program_typing_preserved; intros.
-
+  eapply Peepholeproof.transf_program_correct; eauto 6;
   eapply Asmgenproof.transf_program_correct; eauto 6.
   eapply Machabstr2concr.exec_program_equiv; eauto 6.
   eapply Stackingproof.transf_program_correct; eauto.
