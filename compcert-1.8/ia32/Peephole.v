@@ -65,8 +65,8 @@ Inductive SymExpr : Type :=
   | sub_f  : SymExpr -> SymExpr -> SymExpr
   | mult_f : SymExpr -> SymExpr -> SymExpr
   | div_f  : SymExpr -> SymExpr -> SymExpr
-  | abs_f  : SymExpr -> SymExpr -> SymExpr
-  | neg_f  : SymExpr -> SymExpr -> SymExpr
+  | abs_f  : SymExpr -> SymExpr
+  | neg_f  : SymExpr -> SymExpr
   | Symbol : Loc -> SymExpr
   | Imm    : val -> SymExpr.
 
@@ -175,7 +175,10 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
   (** Integer arithmetic *)
   | Plea rd a =>
       (* FIXME!! not sure Imm eval_addrmode is right *)
-      Some (l # (Register rd) <- (add (l (Register rd)) (Imm (eval_addrmode a l))))
+    match eval_addrmode a l with
+      | Some v => Some (l # (Register rd) <- (add (l (Register rd)) v))
+      | None => None
+    end
   | Pneg rd =>
       Some (l # (Register rd) <- (neg (l (Register rd))))
   | Psub_rr rd r1 =>
@@ -205,21 +208,21 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
   | Pand_ri rd n =>
       Some l # (Register rd) <- (and (l (Register rd)) (Imm (Vint n)))
   | Por_rr rd r1 =>
-      Some (l # (Register rd) <- (or (l (Register rd) (Register r1))))
+      Some (l # (Register rd) <- (or (l (Register rd)) (l (Register r1))))
   | Por_ri rd n =>
       Some (l # (Register rd) <- (or (l (Register rd)) (Imm (Vint n))))
   | Pxor_rr rd r1 =>
-      Some (l # (Register rd) <- (xor (l (Register rd) (Register r1))))
+      Some (l # (Register rd) <- (xor (l (Register rd)) (l (Register r1))))
   | Pxor_ri rd n =>
       Some (l # (Register rd) <- (xor (l (Register rd)) (Imm (Vint n))))
   | Psal_rcl rd =>
     (* FIXME!! not sure this is right, I know the 2^n is wrong *)
       match (l (Register ECX)) with
-        | Imm (Vint n) => Some (l # (Register rd) <- (mult (l (Register rd)) (2^n)))
+        | Imm (Vint n) => Some (l # (Register rd) <- (mult (l (Register rd)) (Imm (Vint (Int.repr (2^(Int.intval n)))))))
         | _ => None
       end
   | Psal_ri rd n =>
-      Some (l # (Register rd) <- (mult (l (Register rd)) (Imm (Int.repr (2^n)))))
+      Some (l # (Register rd) <- (mult (l (Register rd)) (Imm (Vint (Int.repr (2^(Int.intval n)))))))
   | Pshr_rcl rd =>
       Some (l # (Register rd) <- (shiftR (l (Register rd)) (l (Register ECX))))
   | Pshr_ri rd n =>
@@ -240,29 +243,31 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
   | Ptest_ri r1 n =>
       None (* Some ( (compare_ints (Val.and (rs r1) (Vint n)) Vzero rs)) m*)
   | Pcmov c rd r1 =>
+     None (*
      (* FIXME!! needs rewrite of eval_testcond *)
       match eval_testcond c rs with
       | Some true => Some (l # (Register rd) <- (l (Register r1)))
       | Some false => Some l
       | None => None
-      end
+      end*)
   | Psetcc c rd =>
+      None (*
      (* FIXME!! needs rewrite of eval_testcond *)
       match eval_testcond c rs with
       | Some true => Some ((l # (Register ECX) <- (Imm Vundef)) # (Register EDX) <- (Imm Vundef))
                           #  (Register rd) <- (Imm Vtrue)
       | Some false => Some (l # (Register ECX) <- (Imm Vundef)) # (Register rd) <- (Imm Vfalse)
       | None => None
-      end
+      end *)
   (** Arithmetic operations over floats *)
   | Paddd_ff rd r1 =>
-      Some (l # (Register rd) <- (add_f (l (Register rd)) (Register r1)))
+      Some (l # (Register rd) <- (add_f (l (Register rd)) (l (Register r1))))
   | Psubd_ff rd r1 =>
-      Some (l # (Register rd) <- (sub_f (l (Register rd)) (Register r1)))
+      Some (l # (Register rd) <- (sub_f (l (Register rd)) (l (Register r1))))
   | Pmuld_ff rd r1 =>
-      Some (l # (Register rd) <- (mult_f (l (Register rd)) (Register r1)))
+      Some (l # (Register rd) <- (mult_f (l (Register rd)) (l (Register r1))))
   | Pdivd_ff rd r1 =>
-      Some (l # (Register rd) <- (div_f  (l (Register rd)) (Register r1)))
+      Some (l # (Register rd) <- (div_f  (l (Register rd)) (l (Register r1))))
   | Pnegd rd =>
       Some (l # (Register rd) <- (neg_f (l (Register rd))))
   | Pabsd rd =>
@@ -339,18 +344,19 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
   | Pbuiltin ef args res =>
       None
       (* Stuck                             (**r treated specially below *)*)
-
-  | _ => None
   end.
 
 
-Fixpoint symExec (c : code) (v : ValMap) : ValMap :=
+Fixpoint symExec (c : code) (l : locs) : option locs :=
   match c with
-    | nil => v
-    | i :: is => symExec is (single_symExec i v)
-  end. *) 
+    | nil => Some l
+    | i :: is => match (single_symExec i l) with
+                   | Some l' => symExec is l'
+                   | None => None
+                 end
+  end. 
 
-Definition sameSymbolicExecution (c : code) (d : code) : bool. Admitted.
+Definition sameSymbolicExecution (c : option locs) (d : option locs) : bool. Admitted.
 
 (** peephole_validate validates the code optimized by the untrusted
   optimizer is semantically correct.  We only need to prove that
@@ -359,12 +365,14 @@ Definition sameSymbolicExecution (c : code) (d : code) : bool. Admitted.
   doesn't return false given certain known-correct conditions, but
   that isn't required.
  *)
-Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) : bool :=
+Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) (l : locs) : bool :=
   if Zlt_bool (list_length_z c) (list_length_z d)
     then false
-    else sameSymbolicExecution (symExec c) (symExec d).
+    else sameSymbolicExecution (symExec c l) (symExec d l).
 
 Parameter ml_optimize : Asm.code -> Asm.code.
+
+Definition initLocs : locs. Admitted.
 
 (** Peephole optimization of function level lists of assembly code. We
   feed the optimizer sliding windows of up to 4 instructions and then
@@ -372,7 +380,7 @@ Parameter ml_optimize : Asm.code -> Asm.code.
   used, otherwise, they are discarded. **)
 Definition opt_window (c : Asm.code) :=
   let c' := ml_optimize c
-  in if peephole_validate c c'
+  in if peephole_validate c c' initLocs
       then c'
       else c.
 
