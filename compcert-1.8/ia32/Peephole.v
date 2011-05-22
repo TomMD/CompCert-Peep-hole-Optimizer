@@ -408,6 +408,19 @@ Fixpoint drop (n : Z) (c : Asm.code) : Asm.code :=
          end
     else c.
 
+Lemma opt_window_nil_nil : opt_window nil = nil.
+Proof.
+  unfold opt_window. unfold peephole_validate. simpl.
+  induction (Zlt_bool (list_length_z (nil:code)) (list_length_z (ml_optimize nil))).
+  reflexivity. unfold symExec. 
+Admitted.
+
+Theorem ex_falso_quodlibet : forall (P:Prop),
+  False -> P.
+Proof.
+  intros P contra.
+  inversion contra.  Qed.
+
 Program Fixpoint optimize (c : Asm.code) {measure length c} : Asm.code :=
   if zlt (list_length_z c) optWinSz
     then opt_window c
@@ -416,6 +429,10 @@ Program Fixpoint optimize (c : Asm.code) {measure length c} : Asm.code :=
         let rec := drop 1 o ++ drop optWinSz c in
           take 1 o ++ optimize rec.
 Obligation 1.
+  induction c. unfold list_length_z in H.  simpl in H. unfold optWinSz in H.  unfold Zge in H.
+  simpl in H.  unfold not in H. apply ex_falso_quodlibet.  apply H. auto. 
+
+  simpl. unfold opt_window. (* Need a lemma stating the length check in validate applies here *)
 Admitted.
 
 Definition transf_function (f: Asm.code) : res Asm.code :=
