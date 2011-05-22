@@ -68,7 +68,8 @@ Inductive SymExpr : Type :=
   | abs_f  : SymExpr -> SymExpr
   | neg_f  : SymExpr -> SymExpr
   | Symbol : Loc -> SymExpr
-  | Imm    : val -> SymExpr.
+  | Imm    : val -> SymExpr
+  | Initial : Loc -> SymExpr.
 
 (* here we use a map to store SymExpr in the symbolic execution. This
 may not be the right choice because it's not immediately apparent how
@@ -84,9 +85,13 @@ Module Locmap := EMap(LocEq).
 
 Definition locs := Locmap.t SymExpr.
 
-Notation "a # b" := (a b) (at level 1, only parsing).
-Notation "a # b <- c" := (Locmap.set b c a) (at level 1, b at next level).
 
+Notation "a # b" := 
+  (match (a b) with
+     | Imm Vundef => Initial b
+     | x => x
+   end) (at level 1, only parsing).
+Notation "a # b <- c" := (Locmap.set b c a) (at level 1, b at next level).
 
 Definition eval_addrmode (a: addrmode) (l : locs) : option SymExpr :=
   match a with Addrmode base ofs const =>
@@ -114,33 +119,33 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
   match i with
       (** Moves *)
   | Pmov_rr rd r1 =>
-      Some (l # (Register rd) <- (l (Register r1)))
+      Some (l # (Register rd) <- (l # (Register r1)))
   | Pmov_ri rd n =>
       Some (l # (Register rd) <- (Imm (Vint n)))
   | Pmov_rm rd a =>
-      Some (l # (Register rd) <- (l (Memory a)))
+      Some (l # (Register rd) <- (l # (Memory a)))
   | Pmov_mr a r1 =>
       Some (l # (Memory a) <- (l (Register r1)))
   | Pmovd_fr rd r1 =>
-      Some (l # (Register rd) <- (l (Register r1)))
+      Some (l # (Register rd) <- (l # (Register r1)))
   | Pmovd_rf rd r1 => 
-      Some (l # (Register rd) <- (l (Register r1)))
+      Some (l # (Register rd) <- (l # (Register r1)))
   | Pmovsd_ff rd r1 =>
-      Some (l # (Register rd) <- (l (Register r1)))
+      Some (l # (Register rd) <- (l # (Register r1)))
   | Pmovsd_fi rd n =>
       Some (l # (Register rd) <- (Imm (Vfloat n))) 
   | Pmovsd_fm rd a =>
-      Some (l # (Register rd) <- (l (Memory a)))
+      Some (l # (Register rd) <- (l # (Memory a)))
   | Pmovsd_mf a r1 =>
-      Some (l # (Memory a) <- (l (Register r1)))
+      Some (l # (Memory a) <- (l # (Register r1)))
   | Pfld_f r1 =>
-      Some (l # (Register ST0) <- (l (Register r1)))
+      Some (l # (Register ST0) <- (l # (Register r1)))
   | Pfld_m a =>
-      Some (l # (Memory a) <- (l (Register ST0)))
+      Some (l # (Memory a) <- (l # (Register ST0)))
   | Pfstp_f rd =>
-      Some (l # (Register rd) <- (l (Register ST0)))
+      Some (l # (Register rd) <- (l # (Register ST0)))
   | Pfstp_m a =>
-      Some (l # (Memory a) <- (l (Register ST0)))
+      Some (l # (Memory a) <- (l # (Register ST0)))
   (** Moves with conversion -- Currently unsupported *)
   | Pmovb_mr a r1 =>
       None (* exec_store Mint8unsigned m a rs r1 *)
@@ -176,64 +181,64 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
   | Plea rd a =>
       (* FIXME!! not sure Imm eval_addrmode is right *)
     match eval_addrmode a l with
-      | Some v => Some (l # (Register rd) <- (add (l (Register rd)) v))
+      | Some v => Some (l # (Register rd) <- (add (l # (Register rd)) v))
       | None => None
     end
   | Pneg rd =>
-      Some (l # (Register rd) <- (neg (l (Register rd))))
+      Some (l # (Register rd) <- (neg (l # (Register rd))))
   | Psub_rr rd r1 =>
-      Some (l # (Register rd) <- (sub (l (Register rd)) (l (Register r1))))
+      Some (l # (Register rd) <- (sub (l # (Register rd)) (l # (Register r1))))
   | Pimul_rr rd r1 =>
-      Some (l # (Register rd) <- (mult (l (Register rd)) (l (Register r1))))
+      Some (l # (Register rd) <- (mult (l # (Register rd)) (l # (Register r1))))
   | Pimul_ri rd n =>
-      Some (l # (Register rd) <- (mult (l (Register rd)) (Imm (Vint n))))
+      Some (l # (Register rd) <- (mult (l # (Register rd)) (Imm (Vint n))))
   | Pdiv r1 =>
       Some (l 
         # (Register EAX) <- 
-          (div_unsigned (l (Register EAX)) 
+          (div_unsigned (l # (Register EAX)) 
                         ((l # (Register EDX) <- (Imm Vundef)) (Register r1)))) 
         # (Register EDX) <- 
-          (mod_unsigned (l (Register EAX)) 
+          (mod_unsigned (l # (Register EAX)) 
                         ((l #(Register EDX) <- (Imm Vundef)) (Register r1)))
   | Pidiv r1 =>
       Some (l 
         # (Register EAX) <- 
-          (div_signed (l (Register EAX)) 
+          (div_signed (l # (Register EAX)) 
                       ((l # (Register EDX) <- (Imm Vundef)) (Register r1)))) 
         # (Register EDX) <- 
-          (mod_signed (l (Register EAX)) 
+          (mod_signed (l # (Register EAX)) 
                       ((l #(Register EDX) <- (Imm Vundef)) (Register r1)))
   | Pand_rr rd r1 =>
-      Some (l # (Register rd) <- (and (l (Register rd)) (l (Register r1))))
+      Some (l # (Register rd) <- (and (l # (Register rd)) (l # (Register r1))))
   | Pand_ri rd n =>
-      Some l # (Register rd) <- (and (l (Register rd)) (Imm (Vint n)))
+      Some l # (Register rd) <- (and (l # (Register rd)) (Imm (Vint n)))
   | Por_rr rd r1 =>
-      Some (l # (Register rd) <- (or (l (Register rd)) (l (Register r1))))
+      Some (l # (Register rd) <- (or (l # (Register rd)) (l # (Register r1))))
   | Por_ri rd n =>
-      Some (l # (Register rd) <- (or (l (Register rd)) (Imm (Vint n))))
+      Some (l # (Register rd) <- (or (l # (Register rd)) (Imm (Vint n))))
   | Pxor_rr rd r1 =>
-      Some (l # (Register rd) <- (xor (l (Register rd)) (l (Register r1))))
+      Some (l # (Register rd) <- (xor (l # (Register rd)) (l # (Register r1))))
   | Pxor_ri rd n =>
-      Some (l # (Register rd) <- (xor (l (Register rd)) (Imm (Vint n))))
+      Some (l # (Register rd) <- (xor (l # (Register rd)) (Imm (Vint n))))
   | Psal_rcl rd =>
     (* FIXME!! not sure this is right, I know the 2^n is wrong *)
       match (l (Register ECX)) with
-        | Imm (Vint n) => Some (l # (Register rd) <- (mult (l (Register rd)) (Imm (Vint (Int.repr (2^(Int.intval n)))))))
+        | Imm (Vint n) => Some (l # (Register rd) <- (mult (l # (Register rd)) (Imm (Vint (Int.repr (2^(Int.intval n)))))))
         | _ => None
       end
   | Psal_ri rd n =>
-      Some (l # (Register rd) <- (mult (l (Register rd)) (Imm (Vint (Int.repr (2^(Int.intval n)))))))
+      Some (l # (Register rd) <- (mult (l # (Register rd)) (Imm (Vint (Int.repr (2^(Int.intval n)))))))
   | Pshr_rcl rd =>
-      Some (l # (Register rd) <- (shiftR (l (Register rd)) (l (Register ECX))))
+      Some (l # (Register rd) <- (shiftR (l # (Register rd)) (l # (Register ECX))))
   | Pshr_ri rd n =>
-      Some (l # (Register rd) <- (shiftR_unsigned (l (Register rd)) (Imm (Vint n))))
+      Some (l # (Register rd) <- (shiftR_unsigned (l # (Register rd)) (Imm (Vint n))))
   | Psar_rcl rd =>
     (* probably not correct *)
-          Some (l # (Register rd) <- (shiftR (l (Register rd)) (l (Register ECX))))
+          Some (l # (Register rd) <- (shiftR (l # (Register rd)) (l # (Register ECX))))
   | Psar_ri rd n =>
-      Some (l # (Register rd) <- (shiftR (l (Register rd)) (Imm (Vint n))))
+      Some (l # (Register rd) <- (shiftR (l # (Register rd)) (Imm (Vint n))))
   | Pror_ri rd n =>
-      Some (l # (Register rd) <- (ror (l (Register rd)) (Imm (Vint n))))
+      Some (l # (Register rd) <- (ror (l # (Register rd)) (Imm (Vint n))))
   | Pcmp_rr r1 r2 =>
       None (* Some ((compare_ints (rs r1) (rs r2) rs)) m*)
   | Pcmp_ri r1 n =>
@@ -261,17 +266,17 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
       end *)
   (** Arithmetic operations over floats *)
   | Paddd_ff rd r1 =>
-      Some (l # (Register rd) <- (add_f (l (Register rd)) (l (Register r1))))
+      Some (l # (Register rd) <- (add_f (l # (Register rd)) (l # (Register r1))))
   | Psubd_ff rd r1 =>
-      Some (l # (Register rd) <- (sub_f (l (Register rd)) (l (Register r1))))
+      Some (l # (Register rd) <- (sub_f (l # (Register rd)) (l # (Register r1))))
   | Pmuld_ff rd r1 =>
-      Some (l # (Register rd) <- (mult_f (l (Register rd)) (l (Register r1))))
+      Some (l # (Register rd) <- (mult_f (l # (Register rd)) (l # (Register r1))))
   | Pdivd_ff rd r1 =>
-      Some (l # (Register rd) <- (div_f  (l (Register rd)) (l (Register r1))))
+      Some (l # (Register rd) <- (div_f  (l # (Register rd)) (l # (Register r1))))
   | Pnegd rd =>
-      Some (l # (Register rd) <- (neg_f (l (Register rd))))
+      Some (l # (Register rd) <- (neg_f (l # (Register rd))))
   | Pabsd rd =>
-      Some (l # (Register rd) <- (abs_f (l (Register rd))))
+      Some (l # (Register rd) <- (abs_f (l # (Register rd))))
   | Pcomisd_ff r1 r2 =>
       None (*Some ( (compare_floats (rs r1) (rs r2) rs)) m*)
   (** Branches and calls *)
@@ -372,7 +377,8 @@ Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) (l : locs) : bool :=
 
 Parameter ml_optimize : Asm.code -> Asm.code.
 
-Definition initLocs : locs. Admitted.
+Definition initLocs : locs := Locmap.init (Imm Vundef).
+
 
 (** Peephole optimization of function level lists of assembly code. We
   feed the optimizer sliding windows of up to 4 instructions and then
@@ -384,13 +390,14 @@ Definition opt_window (c : Asm.code) :=
       then c'
       else c.
 
-Fixpoint optimize (c : Asm.code) : Asm.code :=
+Function optimize (c : Asm.code) : Asm.code :=
   if zlt (list_length_z c) 4
     then opt_window c
-    else match c with
-         | i1 :: i2 :: i3 :: i4 :: cs => opt_window (i1 :: i2 :: i3 :: i4 :: nil) ++ (optimize cs)
-         | _ => c  (* this isn't right, should fail *)
-         end.
+    else
+      match c with
+        | i1 :: i2 :: i3 :: i4 :: cs => opt_window (i1 :: i2 :: i3 :: i4 :: nil) ++ (optimize cs)
+        | _ => c  (* this isn't right, should fail *)
+      end.
 
 Definition transf_function (f: Asm.code) : res Asm.code :=
   OK (optimize f).
