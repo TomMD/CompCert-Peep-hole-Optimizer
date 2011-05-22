@@ -390,14 +390,33 @@ Definition opt_window (c : Asm.code) :=
       then c'
       else c.
 
-Function optimize (c : Asm.code) : Asm.code :=
-  if zlt (list_length_z c) 4
+Definition optWinSz : Z := 2.
+
+Fixpoint take (n : Z) (c : Asm.code) : Asm.code :=
+  if zlt 0 n
+    then match c with
+           | (x::xs) => x :: take (n - 1) xs
+           | _       => c
+         end
+    else nil.
+
+Fixpoint drop (n : Z) (c : Asm.code) : Asm.code :=
+  if zlt 0 n
+    then match c with
+           | (x::xs) => drop (n - 1) xs
+           | _       => c
+         end
+    else c.
+
+Program Fixpoint optimize (c : Asm.code) {measure length c} : Asm.code :=
+  if zlt (list_length_z c) optWinSz
     then opt_window c
     else
-      match c with
-        | i1 :: i2 :: i3 :: i4 :: cs => opt_window (i1 :: i2 :: i3 :: i4 :: nil) ++ (optimize cs)
-        | _ => c  (* this isn't right, should fail *)
-      end.
+      let o := opt_window (take optWinSz c) in
+        let rec := drop 1 o ++ drop optWinSz c in
+          take 1 o ++ optimize rec.
+Obligation 1.
+Admitted.
 
 Definition transf_function (f: Asm.code) : res Asm.code :=
   OK (optimize f).
