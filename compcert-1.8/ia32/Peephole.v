@@ -38,7 +38,9 @@ Inductive Loc : Type :=
 (* define equality for Loc, used in the Loc store *)
 Lemma Loc_eq : forall (x y : Loc), {x = y} +  {x <> y}.
 Proof.
-  decide equality. apply preg_eq. decide equality; decide equality; try (apply Int.eq_dec). decide equality; try (apply Int.eq_dec). decide equality. decide equality. apply Int.eq_dec. decide equality. decide equality.
+  decide equality. 
+  apply preg_eq.
+  repeat decide equality; try apply Int.eq_dec.
 Defined.
 
 Inductive SymExpr : Type :=
