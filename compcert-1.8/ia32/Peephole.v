@@ -394,11 +394,24 @@ Lemma opt_window_nil_nil : opt_window nil = nil.
   unfold opt_window. unfold peephole_validate. reflexivity.
 Qed.
 
-Lemma opt_window_size : forall c, Compare_dec.leb (length (opt_window c)) (length c) = true.
+Lemma leb_n_n_true : forall n, true = Compare_dec.leb n n.
+Proof.
+  intros. induction n ; auto.
+Qed.
+
+Lemma opt_window_size : forall c, true = Compare_dec.leb (length (opt_window c)) (length c).
 Proof.
   intros. unfold opt_window. unfold peephole_validate. destruct c. reflexivity.
-  simpl.
-Admitted.
+  simpl. remember (Compare_dec.leb (length (ml_optimize (i :: c)))
+                 (Datatypes.S (length c))) as len.
+  destruct len. remember (sameSymbolicExecution
+              match single_symExec i initLocs with
+              | Some l' => symExec c l'
+              | None => None
+              end (symExec (ml_optimize (i :: c)) initLocs)) as ssE.
+  destruct ssE. assumption. simpl. apply leb_n_n_true. simpl. apply leb_n_n_true.
+Qed.
+
 
 Definition optWinSz : nat := 2%nat.
 
