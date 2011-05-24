@@ -87,12 +87,7 @@ Module Locmap := EMap(LocEq).
 
 Definition locs := Locmap.t SymExpr.
 
-
-Notation "a # b" := 
-  (match (a b) with
-     | Imm Vundef => Initial b
-     | x => x
-   end) (at level 1, only parsing).
+Notation "a # b" := (a b) (at level 1, only parsing).
 Notation "a # b <- c" := (Locmap.set b c a) (at level 1, b at next level).
 
 Definition eval_addrmode (a: addrmode) (l : locs) : option SymExpr :=
@@ -379,8 +374,11 @@ Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) (l : locs) : bool :=
 
 Parameter ml_optimize : Asm.code -> Asm.code.
 
-Definition initLocs : locs := Locmap.init (Imm Vundef).
-
+(** the initial state of our symbolic store returns the initial value
+    for a given location. This means that no location is initially
+    undefined and instead has the value "Initial foo" for the location
+    "foo"*) 
+Definition initLocs : locs := fun v => Initial v.
 
 (** Peephole optimization of function level lists of assembly code. We
   feed the optimizer sliding windows of up to 4 instructions and then
