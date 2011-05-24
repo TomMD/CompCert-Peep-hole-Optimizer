@@ -20,7 +20,7 @@ Fixpoint update' (k : key) (v : val) (l : a_list) : a_list :=
     | nil => (k, v) :: nil
     | (k', v') :: ls => if key_eq k k'
       then (k, v) :: ls
-      else update' k v ls
+      else (k', v') :: update' k v ls
   end.
 
 Definition update (k : key) (v : val) (s : LocStore) : LocStore :=
@@ -51,7 +51,3 @@ Definition elements (s : LocStore) : list key :=
 
 End LocStore.
 
-
-
-
-    
