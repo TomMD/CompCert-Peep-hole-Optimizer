@@ -116,31 +116,31 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
   match i with
       (** Moves *)
   | Pmov_rr rd r1 =>
-      Some (l # (Register rd) <- (l # (Register r1)))
+      Some (l # (Register rd) <- (l (Register r1)))
   | Pmov_ri rd n =>
       Some (l # (Register rd) <- (Imm (Vint n)))
   | Pmov_rm rd a =>
-      Some (l # (Register rd) <- (l # (Memory a)))
+      Some (l # (Register rd) <- (l (Memory a)))
   | Pmov_mr a r1 =>
       Some (l # (Memory a) <- (l (Register r1)))
   | Pmovd_fr rd r1 =>
-      Some (l # (Register rd) <- (l # (Register r1)))
+      Some (l # (Register rd) <- (l (Register r1)))
   | Pmovd_rf rd r1 => 
-      Some (l # (Register rd) <- (l # (Register r1)))
+      Some (l # (Register rd) <- (l (Register r1)))
   | Pmovsd_ff rd r1 =>
-      Some (l # (Register rd) <- (l # (Register r1)))
+      Some (l # (Register rd) <- (l (Register r1)))
   | Pmovsd_fi rd n =>
       Some (l # (Register rd) <- (Imm (Vfloat n))) 
   | Pmovsd_fm rd a =>
-      Some (l # (Register rd) <- (l # (Memory a)))
+      Some (l # (Register rd) <- (l (Memory a)))
   | Pmovsd_mf a r1 =>
-      Some (l # (Memory a) <- (l # (Register r1)))
+      Some (l # (Memory a) <- (l (Register r1)))
   | Pfld_f r1 =>
-      Some (l # (Register ST0) <- (l # (Register r1)))
+      Some (l # (Register ST0) <- (l (Register r1)))
   | Pfld_m a =>
-      Some (l # (Memory a) <- (l # (Register ST0)))
+      Some (l # (Memory a) <- (l (Register ST0)))
   | Pfstp_f rd =>
-      Some (l # (Register rd) <- (l # (Register ST0)))
+      Some (l # (Register rd) <- (l (Register ST0)))
   | Pfstp_m a =>
       Some (l # (Memory a) <- (l # (Register ST0)))
   (** Moves with conversion -- Currently unsupported *)
@@ -178,64 +178,64 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
   | Plea rd a =>
       (* FIXME!! not sure Imm eval_addrmode is right *)
     match eval_addrmode a l with
-      | Some v => Some (l # (Register rd) <- (add (l # (Register rd)) v))
+      | Some v => Some (l # (Register rd) <- (add (l (Register rd)) v))
       | None => None
     end
   | Pneg rd =>
-      Some (l # (Register rd) <- (neg (l # (Register rd))))
+      Some (l # (Register rd) <- (neg (l (Register rd))))
   | Psub_rr rd r1 =>
-      Some (l # (Register rd) <- (sub (l # (Register rd)) (l # (Register r1))))
+      Some (l # (Register rd) <- (sub (l (Register rd)) (l (Register r1))))
   | Pimul_rr rd r1 =>
-      Some (l # (Register rd) <- (mult (l # (Register rd)) (l # (Register r1))))
+      Some (l # (Register rd) <- (mult (l (Register rd)) (l (Register r1))))
   | Pimul_ri rd n =>
-      Some (l # (Register rd) <- (mult (l # (Register rd)) (Imm (Vint n))))
+      Some (l # (Register rd) <- (mult (l (Register rd)) (Imm (Vint n))))
   | Pdiv r1 =>
       Some (l 
         # (Register EAX) <- 
-          (div_unsigned (l # (Register EAX)) 
+          (div_unsigned (l (Register EAX)) 
                         ((l # (Register EDX) <- (Imm Vundef)) (Register r1)))) 
         # (Register EDX) <- 
-          (mod_unsigned (l # (Register EAX)) 
-                        ((l #(Register EDX) <- (Imm Vundef)) (Register r1)))
+          (mod_unsigned (l (Register EAX)) 
+                        ((l # (Register EDX) <- (Imm Vundef)) (Register r1)))
   | Pidiv r1 =>
       Some (l 
         # (Register EAX) <- 
-          (div_signed (l # (Register EAX)) 
+          (div_signed (l (Register EAX)) 
                       ((l # (Register EDX) <- (Imm Vundef)) (Register r1)))) 
         # (Register EDX) <- 
-          (mod_signed (l # (Register EAX)) 
-                      ((l #(Register EDX) <- (Imm Vundef)) (Register r1)))
+          (mod_signed (l (Register EAX)) 
+                      ((l # (Register EDX) <- (Imm Vundef)) (Register r1)))
   | Pand_rr rd r1 =>
-      Some (l # (Register rd) <- (and (l # (Register rd)) (l # (Register r1))))
+      Some (l # (Register rd) <- (and (l (Register rd)) (l (Register r1))))
   | Pand_ri rd n =>
-      Some l # (Register rd) <- (and (l # (Register rd)) (Imm (Vint n)))
+      Some l # (Register rd) <- (and (l (Register rd)) (Imm (Vint n)))
   | Por_rr rd r1 =>
-      Some (l # (Register rd) <- (or (l # (Register rd)) (l # (Register r1))))
+      Some (l # (Register rd) <- (or (l (Register rd)) (l (Register r1))))
   | Por_ri rd n =>
-      Some (l # (Register rd) <- (or (l # (Register rd)) (Imm (Vint n))))
+      Some (l # (Register rd) <- (or (l (Register rd)) (Imm (Vint n))))
   | Pxor_rr rd r1 =>
-      Some (l # (Register rd) <- (xor (l # (Register rd)) (l # (Register r1))))
+      Some (l # (Register rd) <- (xor (l (Register rd)) (l (Register r1))))
   | Pxor_ri rd n =>
-      Some (l # (Register rd) <- (xor (l # (Register rd)) (Imm (Vint n))))
+      Some (l # (Register rd) <- (xor (l (Register rd)) (Imm (Vint n))))
   | Psal_rcl rd =>
     (* FIXME!! not sure this is right, I know the 2^n is wrong *)
       match (l (Register ECX)) with
-        | Imm (Vint n) => Some (l # (Register rd) <- (mult (l # (Register rd)) (Imm (Vint (Int.repr (2^(Int.intval n)))))))
+        | Imm (Vint n) => Some (l # (Register rd) <- (mult (l (Register rd)) (Imm (Vint (Int.repr (2^(Int.intval n)))))))
         | _ => None
       end
   | Psal_ri rd n =>
-      Some (l # (Register rd) <- (mult (l # (Register rd)) (Imm (Vint (Int.repr (2^(Int.intval n)))))))
+      Some (l # (Register rd) <- (mult (l (Register rd)) (Imm (Vint (Int.repr (2^(Int.intval n)))))))
   | Pshr_rcl rd =>
-      Some (l # (Register rd) <- (shiftR (l # (Register rd)) (l # (Register ECX))))
+      Some (l # (Register rd) <- (shiftR (l (Register rd)) (l (Register ECX))))
   | Pshr_ri rd n =>
-      Some (l # (Register rd) <- (shiftR_unsigned (l # (Register rd)) (Imm (Vint n))))
+      Some (l # (Register rd) <- (shiftR_unsigned (l (Register rd)) (Imm (Vint n))))
   | Psar_rcl rd =>
     (* probably not correct *)
-          Some (l # (Register rd) <- (shiftR (l # (Register rd)) (l # (Register ECX))))
+          Some (l # (Register rd) <- (shiftR (l (Register rd)) (l (Register ECX))))
   | Psar_ri rd n =>
-      Some (l # (Register rd) <- (shiftR (l # (Register rd)) (Imm (Vint n))))
+      Some (l # (Register rd) <- (shiftR (l (Register rd)) (Imm (Vint n))))
   | Pror_ri rd n =>
-      Some (l # (Register rd) <- (ror (l # (Register rd)) (Imm (Vint n))))
+      Some (l # (Register rd) <- (ror (l (Register rd)) (Imm (Vint n))))
   | Pcmp_rr r1 r2 =>
       None (* Some ((compare_ints (rs r1) (rs r2) rs)) m*)
   | Pcmp_ri r1 n =>
@@ -263,17 +263,17 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
       end *)
   (** Arithmetic operations over floats *)
   | Paddd_ff rd r1 =>
-      Some (l # (Register rd) <- (add_f (l # (Register rd)) (l # (Register r1))))
+      Some (l # (Register rd) <- (add_f (l (Register rd)) (l (Register r1))))
   | Psubd_ff rd r1 =>
-      Some (l # (Register rd) <- (sub_f (l # (Register rd)) (l # (Register r1))))
+      Some (l # (Register rd) <- (sub_f (l (Register rd)) (l (Register r1))))
   | Pmuld_ff rd r1 =>
-      Some (l # (Register rd) <- (mult_f (l # (Register rd)) (l # (Register r1))))
+      Some (l # (Register rd) <- (mult_f (l (Register rd)) (l (Register r1))))
   | Pdivd_ff rd r1 =>
-      Some (l # (Register rd) <- (div_f  (l # (Register rd)) (l # (Register r1))))
+      Some (l # (Register rd) <- (div_f  (l (Register rd)) (l (Register r1))))
   | Pnegd rd =>
-      Some (l # (Register rd) <- (neg_f (l # (Register rd))))
+      Some (l # (Register rd) <- (neg_f (l (Register rd))))
   | Pabsd rd =>
-      Some (l # (Register rd) <- (abs_f (l # (Register rd))))
+      Some (l # (Register rd) <- (abs_f (l (Register rd))))
   | Pcomisd_ff r1 r2 =>
       None (*Some ( (compare_floats (rs r1) (rs r2) rs)) m*)
   (** Branches and calls *)
@@ -412,6 +412,12 @@ Proof.
   destruct ssE. assumption. simpl. apply leb_n_n_true. simpl. apply leb_n_n_true.
 Qed.
 
+Lemma eq_length_eq : forall A (xs : list A) ys, xs = ys -> length xs = length ys.
+Proof.
+  intros.
+  induction xs. destruct ys ; auto. inversion H.
+  destruct ys. inversion H. rewrite H.  reflexivity.
+Qed.
 
 Definition optWinSz : nat := 2%nat.
 
@@ -426,7 +432,7 @@ intros. induction c. inversion teq.
 destruct c. inversion teq. simpl.  remember (opt_window (a :: i :: nil)) as c0. 
 induction c0.
 simpl.  omega.  destruct c0. simpl. omega.
-rewrite app_length. simpl.  
+rewrite app_length. simpl. 
 
 destruct c0. simpl. omega.
 
