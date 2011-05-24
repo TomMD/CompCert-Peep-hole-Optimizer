@@ -38,9 +38,7 @@ Inductive Loc : Type :=
 (* define equality for Loc, used in the Loc store *)
 Lemma Loc_eq : forall (x y : Loc), {x = y} +  {x <> y}.
 Proof.
-  decide equality. 
-  apply preg_eq.
-  repeat decide equality; try apply Int.eq_dec.
+  decide equality. apply preg_eq. decide equality; decide equality; try (apply Int.eq_dec). decide equality; try (apply Int.eq_dec). decide equality. decide equality. apply Int.eq_dec. decide equality. decide equality.
 Defined.
 
 Inductive SymExpr : Type :=
@@ -87,7 +85,12 @@ Module Locmap := EMap(LocEq).
 
 Definition locs := Locmap.t SymExpr.
 
-Notation "a # b" := (a b) (at level 1, only parsing).
+
+Notation "a # b" := 
+  (match (a b) with
+     | Imm Vundef => Initial b
+     | x => x
+   end) (at level 1, only parsing).
 Notation "a # b <- c" := (Locmap.set b c a) (at level 1, b at next level).
 
 Definition eval_addrmode (a: addrmode) (l : locs) : option SymExpr :=
@@ -367,18 +370,15 @@ Definition sameSymbolicExecution (c : option locs) (d : option locs) : bool. Adm
   doesn't return false given certain known-correct conditions, but
   that isn't required.
  *)
-Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) (l : locs) : bool :=
-  if (negb (beq_nat (length c) 0)) && Compare_dec.leb (length d) (length c)
-    then sameSymbolicExecution (symExec c l) (symExec d l)    
+Fixpoint peephole_validate (c : Asm.code) (c' : Asm.code) (l : locs) : bool :=
+  if (negb (beq_nat (length c) 0)) && Compare_dec.leb (length c') (length c)
+    then sameSymbolicExecution (symExec c l) (symExec c' l)    
     else false.
 
 Parameter ml_optimize : Asm.code -> Asm.code.
 
-(** the initial state of our symbolic store returns the initial value
-    for a given location. This means that no location is initially
-    undefined and instead has the value "Initial foo" for the location
-    "foo"*) 
-Definition initLocs : locs := fun v => Initial v.
+Definition initLocs : locs := Locmap.init (Imm Vundef).
+
 
 (** Peephole optimization of function level lists of assembly code. We
   feed the optimizer sliding windows of up to 4 instructions and then
@@ -394,11 +394,23 @@ Lemma opt_window_nil_nil : opt_window nil = nil.
   unfold opt_window. unfold peephole_validate. reflexivity.
 Qed.
 
-Lemma opt_window_size : forall c, Compare_dec.leb (length (opt_window c)) (length c) = true.
+Lemma leb_n_n_true : forall n, true = Compare_dec.leb n n.
+Proof.
+  intros. induction n ; auto.
+Qed.
+
+Lemma opt_window_size : forall c, true = Compare_dec.leb (length (opt_window c)) (length c).
 Proof.
   intros. unfold opt_window. unfold peephole_validate. destruct c. reflexivity.
-  simpl.
-Admitted.
+  simpl. remember (Compare_dec.leb (length (ml_optimize (i :: c)))
+                 (Datatypes.S (length c))) as len.
+  destruct len. remember (sameSymbolicExecution
+              match single_symExec i initLocs with
+              | Some l' => symExec c l'
+              | None => None
+              end (symExec (ml_optimize (i :: c)) initLocs)) as ssE. 
+  destruct ssE. assumption. simpl. apply leb_n_n_true. simpl. apply leb_n_n_true.
+Qed.
 
 Definition optWinSz : nat := 2%nat.
 
@@ -417,7 +429,11 @@ rewrite app_length. simpl.
 
 destruct c0. simpl. omega.
 
-(* Need lemma here *)
+(* Grr, I can see it but my Coq proof skills have just gotten so rusty
+ * here, Heqc0 is false and we can show that with:
+ *  1) some lemma forall a b, a = b -> (length a) = (length b).
+ *  2) opt_window_size lemma from above.
+ *)
 Admitted.
 
 Definition transf_function (f: Asm.code) : res Asm.code :=
