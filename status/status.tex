@@ -64,7 +64,12 @@ means we might miss optimizations or even reject optimizations that
 would be valid in the larger scope.~\footnote{For example, weakening
   {\tt mul} to {\tt shl} isn't always valid due to the x86 flags, but
   it might be if the flags are adjusted by future instructions prior
-  to use.}
+  to use.} We intend to rework this to handle so-called ``basic
+blocks'' instead of an arbitrary small window of code. A basic block,
+for this purpose, is any section of code which does not contain
+an instruction for which there is no symbolic execution defined. This
+will allow expansion of the set of optimizable instructions by
+defining a symbolic execution function for them.
 
 \section{Proof of Correctness of the Validator}
 The validator's proof of correctness, necessary for an end-to-end
