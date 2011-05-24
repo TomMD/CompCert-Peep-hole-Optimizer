@@ -1,0 +1,98 @@
+\documentclass{article}
+
+\title{Project Status: Validated Peephole Optimization for CompCert's x86 Backend}
+\author{Andrew Sackville-West, Thomas M. DuBuisson}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+Compcert's x86 back-end is known to produce inefficient code, even
+when compared to the same ARM and PPC code produced from the same
+source program.  Informal observation suggests there is opportunity
+for performance improvement using an architecture specific peephole
+optimization.
+
+\section{Method}
+In a similar vein to work by Tristian and Leroy's Translation
+Validators, we have begun implementing an ML peephole optimizer, a
+Gallina validator performing symbolic execution to compare pre- and
+post-optimized code, a parent ``optimize'' routine to traverse the
+instructions, and proofs of the validator's correctness.  Below we
+address each of these components individually.
+
+The first attempt was to add peephole optimization directly to the ASM
+stage in CompCert.  After much wrestling with existing proofs, which
+broke sometimes only incidentally due to the peephole optimizer, we
+decided to instead add this work as a new final stage to the CompCert
+pipeline.  As a result there were minor, high level, additions in
+Compiler.v to both add the optimization pass and apply an (admitted)
+theorem for the end-to-end proof.
+
+\section{Symbolic-Execution Based Validator}
+The validator accepts the pre- and post-optimized code as arguments.
+It then symbolicly executes each of the pieces of code and compares
+the result.  Our current design is to obtain three pieces of data from
+symbolic execution: a mapping of locations (registers, memory) to
+values (symbolic expressions), a set of all observed locations, and a
+set of ``constraints'' (operations that might produce side effects not
+captured by our symbolic expressions, such as dividing by zero).
+
+As of May 24th, the symbolic execution tracks the location/value
+mapping for the most common instructions and most locations (tracking
+flags is a work in progress).  Additionally, the mapping has been
+reworked from a function into an association list, allowing access to
+the set of observed locations.
+
+\paragraph{Shortcomings: }
+Obtaining constraints is still a ways off - we are unclear exactly
+what constraints exist in the x86 architecture as well as what is
+necessary to make the end-to-end compiler proof feasible.  Many
+instructions, especially those working on data larger or smaller than
+32 bits, have no symbolic execution.  Finally, our mapping of
+locations has no concept of overlapping locations (ex: {\tt movd (x) \%eax;
+mov (x+4) \%ebx}), which must either be addressed or justified.
+
+\section{Wrapping It All Together: Optimize!}
+The optimize function slides a small window across a provided
+instruction stream, validating each peephole-optimized window
+separately.  In this manner we reduce the likely hood of being unable
+to validate due to the scope containing an instruction that is not
+supported by our symbolic execution engine.  On the downside, this
+means we might miss optimizations or even reject optimizations that
+would be valid in the larger scope.~\footnote{For example, weakening
+  {\tt mul} to {\tt shl} isn't always valid due to the x86 flags, but
+  it might be if the flags are adjusted by future instructions prior
+  to use.}
+
+\section{Proof of Correctness of the Validator}
+The validator's proof of correctness, necessary for an end-to-end
+compiler proof, is unlikely to be complete by the end of the term.  We
+have several lemmas regarding register sets and instruction execution,
+but those are unlikely to be useful on the validator - it appears
+having a validator is an important part of proving it's operation
+correct.
+
+To aid the CompCert end-to-end proof, we have a Lemma similar to those
+for other stages (where {\tt tprog} is the optimization of {\tt prog}): {\tt
+  forall (beh: program\_behavior), not\_wrong beh $\rightarrow$ Asm.exec\_program
+  prog beh $\rightarrow$ Asm.exec\_program tprog beh.}.
+
+\section{ML Peephole Optimizer}
+The actual peephole optimization only contains a trivial load/store
+optimization.  While we are developing a framework intended to support
+a wider range of optimizations, such as instruction weakening,
+constant propagation, and invariant hoisting, all these optimizations
+are opaque to the verifier and it's proof.  We intend to expand the
+set of optimizations prior to completion.
+
+\section{Conclusion}
+While the project is progressing, it is far behind where it should be
+for the full proposal to be completed by the end of term.  A
+reasonable expectation might be for an expanded ML peephole
+optimization routine, functional validator using symbolic execution,
+but admitted proofs for the correct operation of the validator.
+
+
+\end{document}
