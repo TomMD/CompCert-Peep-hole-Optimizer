@@ -368,9 +368,9 @@ Definition sameSymbolicExecution (c : option locs) (d : option locs) : bool. Adm
   that isn't required.
  *)
 Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) (l : locs) : bool :=
-  if Zlt_bool (list_length_z c) (list_length_z d)
-    then false
-    else sameSymbolicExecution (symExec c l) (symExec d l).
+  if (negb (beq_nat (length c) 0)) && Compare_dec.leb (length d) (length c)
+    then sameSymbolicExecution (symExec c l) (symExec d l)    
+    else false.
 
 Parameter ml_optimize : Asm.code -> Asm.code.
 
@@ -390,49 +390,34 @@ Definition opt_window (c : Asm.code) :=
       then c'
       else c.
 
-Definition optWinSz : Z := 2.
-
-Fixpoint take (n : Z) (c : Asm.code) : Asm.code :=
-  if zlt 0 n
-    then match c with
-           | (x::xs) => x :: take (n - 1) xs
-           | _       => c
-         end
-    else nil.
-
-Fixpoint drop (n : Z) (c : Asm.code) : Asm.code :=
-  if zlt 0 n
-    then match c with
-           | (x::xs) => drop (n - 1) xs
-           | _       => c
-         end
-    else c.
-
 Lemma opt_window_nil_nil : opt_window nil = nil.
+  unfold opt_window. unfold peephole_validate. reflexivity.
+Qed.
+
+Lemma opt_window_size : forall c, Compare_dec.leb (length (opt_window c)) (length c) = true.
 Proof.
-  unfold opt_window. unfold peephole_validate. simpl.
-  induction (Zlt_bool (list_length_z (nil:code)) (list_length_z (ml_optimize nil))).
-  reflexivity. unfold symExec. 
+  intros. unfold opt_window. unfold peephole_validate. destruct c. reflexivity.
+  simpl.
 Admitted.
 
-Theorem ex_falso_quodlibet : forall (P:Prop),
-  False -> P.
-Proof.
-  intros P contra.
-  inversion contra.  Qed.
+Definition optWinSz : nat := 2%nat.
 
-Program Fixpoint optimize (c : Asm.code) {measure length c} : Asm.code :=
-  if zlt (list_length_z c) optWinSz
+Function optimize (c : Asm.code) {measure length c} : Asm.code :=
+  if Compare_dec.leb (length c) optWinSz
     then opt_window c
     else
-      let o := opt_window (take optWinSz c) in
-        let rec := drop 1 o ++ drop optWinSz c in
-          take 1 o ++ optimize rec.
-Obligation 1.
-  induction c. unfold list_length_z in H.  simpl in H. unfold optWinSz in H.  unfold Zge in H.
-  simpl in H.  unfold not in H. apply ex_falso_quodlibet.  apply H. auto. 
+      let o := opt_window (firstn optWinSz c) in
+        let rec := skipn 1 o ++ skipn optWinSz c in
+          firstn 1 o ++ optimize rec.
+intros. induction c. inversion teq.
+destruct c. inversion teq. simpl.  remember (opt_window (a :: i :: nil)) as c0. 
+induction c0.
+simpl.  omega.  destruct c0. simpl. omega.
+rewrite app_length. simpl.  
 
-  simpl. unfold opt_window. (* Need a lemma stating the length check in validate applies here *)
+destruct c0. simpl. omega.
+
+(* Need lemma here *)
 Admitted.
 
 Definition transf_function (f: Asm.code) : res Asm.code :=
