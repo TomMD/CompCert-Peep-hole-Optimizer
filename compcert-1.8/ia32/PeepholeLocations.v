@@ -9,11 +9,11 @@ Definition a_list := list (key * val).
 
 Record LocStore : Type := mkLocStore 
   { store : a_list;
-    default : val;
+    default : key -> val;
     dec := key_eq
   }.
 
-Definition initLocStore (d : val) := mkLocStore nil d.
+Definition initLocStore (d : key -> val) := mkLocStore nil d.
 
 Fixpoint update' (k : key) (v : val) (l : a_list) : a_list := 
   match l with
@@ -36,7 +36,7 @@ Fixpoint lookup' (k : key) (l : a_list) : option val :=
 
 Definition lookup (k : key) (s : LocStore) : val :=
   match lookup' k (store s) with
-    | None => default s
+    | None => (default s) k
     | Some v => v
   end.
 
