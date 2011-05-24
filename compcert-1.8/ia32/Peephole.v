@@ -110,6 +110,13 @@ Definition eval_addrmode (a: addrmode) (l : locs) : option SymExpr :=
     end
   end.
 
+Definition symUndef := Imm Vundef.
+
+Definition setAllFlags (l : locs) (e : SymExpr) : locs :=
+  l # (Register (CR ZF)) <- e
+    # (Register (CR CF)) <- e
+    # (Register (CR PF)) <- e
+    # (Register (CR SOF)) <- e.
 
 (* small step symbolic execution *)
 Definition single_symExec (i : instruction) (l : locs) : option locs :=
@@ -136,7 +143,7 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
   | Pmovsd_mf a r1 =>
       Some (l # (Memory a) <- (l (Register r1)))
   | Pfld_f r1 =>
-      Some (l # (Register ST0) <- (l (Register r1)))
+      Some (l # (Register ST0) <- (l (Register r1)))  (* We don't track flags for the FPU *)
   | Pfld_m a =>
       Some (l # (Memory a) <- (l (Register ST0)))
   | Pfstp_f rd =>
@@ -178,37 +185,61 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
   | Plea rd a =>
       (* FIXME!! not sure Imm eval_addrmode is right *)
     match eval_addrmode a l with
-      | Some v => Some (l # (Register rd) <- (add (l (Register rd)) v))
+      | Some v => Some (l # (Register rd) <- v)
       | None => None
     end
   | Pneg rd =>
-      Some (l # (Register rd) <- (neg (l (Register rd))))
+    let res = neg (l (Register rd)) in
+      Some (setAllFlags (l # (Register rd) <- res) res)
   | Psub_rr rd r1 =>
-      Some (l # (Register rd) <- (sub (l (Register rd)) (l (Register r1))))
+    let res = sub (l (Register rd)) (l (Register r1)) in
+      Some (setAllFlags (l # (Register rd) <- (sub (l (Register rd)) (l (Register r1)))))
   | Pimul_rr rd r1 =>
-      Some (l # (Register rd) <- (mult (l (Register rd)) (l (Register r1))))
+    let res = mult (l (Register rd)) (l (Register r1))
+      Some (l # (Register rd) <- res
+              # (Register (CR ZF)) symUndef
+              # (Register (CR PF)) symUndef
+              # (Register (CR CF)) res
+              # Register (CR SOF) symUndef (* OF is actually set while SF is undef on x86 *)
+              )
   | Pimul_ri rd n =>
-      Some (l # (Register rd) <- (mult (l (Register rd)) (Imm (Vint n))))
+    let res = mult (l (Register rd)) (Imm (Vint n))
+      Some (l # (Register rd) <- res
+              # (Register (CR ZF)) symUndef
+              # (Register (CR PF)) symUndef
+              # (Register (CR CF)) res
+              # Register (CR SOF) symUndef (* OF is actually set while SF is undef on x86 *)     
+           )
   | Pdiv r1 =>
-      Some (l 
+      Some (setAllFlags (l 
         # (Register EAX) <- 
           (div_unsigned (l (Register EAX)) 
                         ((l # (Register EDX) <- (Imm Vundef)) (Register r1)))) 
         # (Register EDX) <- 
           (mod_unsigned (l (Register EAX)) 
-                        ((l # (Register EDX) <- (Imm Vundef)) (Register r1)))
+                        ((l # (Register EDX) <- (Imm Vundef)) (Register r1))) symUndef)
   | Pidiv r1 =>
-      Some (l 
+      Some (setAllFlags (l 
         # (Register EAX) <- 
           (div_signed (l (Register EAX)) 
                       ((l # (Register EDX) <- (Imm Vundef)) (Register r1)))) 
         # (Register EDX) <- 
           (mod_signed (l (Register EAX)) 
-                      ((l # (Register EDX) <- (Imm Vundef)) (Register r1)))
+                      ((l # (Register EDX) <- (Imm Vundef)) (Register r1))) symUndef)
   | Pand_rr rd r1 =>
-      Some (l # (Register rd) <- (and (l (Register rd)) (l (Register r1))))
+    let res = and (l (Register rd)) (l (Register r1)) in
+      Some (l # (Register rd) <- res
+              # (Register (CR SOF)) <- res  (* OF is cleared, but we can't capture that *)
+              # (Register (CR CF)) <- (Imm (Vint 0))
+              # (Register (CR ZF)) <- res
+              # (Register (CR PF)) <- res)
   | Pand_ri rd n =>
-      Some l # (Register rd) <- (and (l (Register rd)) (Imm (Vint n)))
+    let res = and (l (Register rd)) (l (Imm (Vint n))) in
+      Some (l # (Register rd) <- res
+              # (Register (CR SOF)) <- res  (* OF is cleared, but we can't capture that *)
+              # (Register (CR CF)) <- (Imm (Vint 0))
+              # (Register (CR ZF)) <- res
+              # (Register (CR PF)) <- res)
   | Por_rr rd r1 =>
       Some (l # (Register rd) <- (or (l (Register rd)) (l (Register r1))))
   | Por_ri rd n =>
