@@ -470,24 +470,23 @@ Proof.
   destruct ys. inversion H. rewrite H.  reflexivity.
 Qed.
 
-Definition optWinSz : nat := 2%nat.
+Fixpoint partitionSymExec (c : Asm.code) : (Asm.code * Asm.code) :=
+  match c with
+    | nil     => (pair nil nil)
+    | (x::xs) => match single_symExec x initLocs with
+                   | None => pair nil (x::xs)
+                   | _    => let (cs,bs) := partitionSymExec xs in pair (x::cs) bs
+                     end
+    end.
 
 Function optimize (c : Asm.code) {measure length c} : Asm.code :=
-  if Compare_dec.leb (length c) optWinSz
-    then opt_window c
-    else
-      let o := opt_window (firstn optWinSz c) in
-        let rec := skipn 1 o ++ skipn optWinSz c in
-          firstn 1 o ++ optimize rec.
-intros. induction c. inversion teq.
-destruct c. inversion teq. simpl.  remember (opt_window (a :: i :: nil)) as c0. 
-induction c0.
-simpl.  omega.  destruct c0. simpl. omega.
-rewrite app_length. simpl. 
-
-destruct c0. simpl. omega.
-
-(* Need lemma here *)
+  let part := partitionSymExec c in
+    match snd part with
+                 | nil     => opt_window (fst part)
+                 | (r::rs) => opt_window (fst part) ++ (r :: optimize rs)
+    end.
+Proof.
+  intros.  
 Admitted.
 
 Definition transf_function (f: Asm.code) : res Asm.code :=
