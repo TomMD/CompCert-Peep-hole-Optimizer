@@ -10,7 +10,7 @@
 
 Compcert's x86 back-end is known to produce inefficient code, even
 when compared to ARM and PPC code produced from the same source
-program.  Informal observation suggests there is opportunity for
+code.  Informal observation suggests there is opportunity for
 performance improvement using an architecture specific peephole
 optimization.
 
@@ -64,20 +64,23 @@ means we might miss optimizations or even reject optimizations that
 would be valid in the larger scope.~\footnote{For example, weakening
   {\tt mul} to {\tt shl} isn't always valid due to the x86 flags, but
   it might be if the flags are adjusted by future instructions prior
-  to use.} We intend to rework this to handle so-called ``basic
-blocks'' instead of an arbitrary small window of code. A basic block,
-for this purpose, is any section of code which does not contain
-an instruction for which there is no symbolic execution defined. This
-will allow expansion of the set of optimizable instructions by
-defining a symbolic execution function for them.
+  to use.} We intend to rework this to handle so-called
+
+The optimize function accepts a list of instructions, paritions them
+into basic blocks, calls the peephole optimizer and validates the
+resulting block against the original block.  If the validation ever
+fails, the optimized block is discarded in favor of the original.  A
+basic block, for this purpose, is any section of code which does not
+contain an instruction for which there is no symbolic execution
+defined. This allows expansion of the set of optimizable instructions
+by adding a suitable symbolic execution definition.
 
 \section{Proof of Correctness of the Validator}
 The validator's proof of correctness, necessary for an end-to-end
 compiler proof, is unlikely to be complete by the end of the term.  We
-have several lemmas regarding register sets and instruction execution,
-but those are unlikely to be useful on the validator - it appears
-having a validator is an important part of proving it's operation
-correct.
+have several lemmas regarding register sets and instruction execution
+which are proving useful, but it appears having a validator is an
+important part of proving it's operation correct.
 
 To aid the CompCert end-to-end proof, we have an admitted Lemma
 similar to those for other stages (where {\tt tprog} is the
