@@ -393,13 +393,73 @@ Fixpoint symExec (c : code) (l : locs) : option locs :=
                    | Some l' => symExec is l'
                    | None => None
                  end
-  end. 
+  end.
 
-Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}. 
-  refine (fun (a b : SymExpr) =>
-  match a, b with
-  | _, _ => _
-  end). induction a; induction b; decide equality; try (apply Loc_eq); try (apply val_eq_dec).
+Notation "a '&&&' b" := 
+  (if a 
+    then if b
+      then Utils.in_left
+      else Utils.in_right
+    else Utils.in_right).
+
+
+(* don't actually try to run this definition, it's *very* big and *very* slow... *)
+Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}.
+  refine (fix f (a b : SymExpr) : {a = b} + {a <> b} :=
+  (match a, b as _ return _ with
+     | add a' a'', add b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | sub a' a'', sub b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | mult a' a'', mult b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | div_unsigned a' a'', div_unsigned b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | div_signed a' a'', div_signed b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | mod_unsigned a' a'', mod_unsigned b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | mod_signed a' a'', mod_signed b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | shiftR a' a'', shiftR b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | shiftR_unsigned a' a'', shiftR_unsigned b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | ror a' a'', ror b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | and a' a'', and b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | or a' a'', or b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | neg a', neg b' => 
+       if (f a' b') then _ else _
+     | xor a' a'', xor b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | cmp a' a'', cmp b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | test a' a'', test b' b'' =>  
+       (f a' b') &&& (f a'' b'') (* probably not right because of flags?? *)
+     | add_f a' a'', add_f b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | sub_f a' a'', sub_f b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | mult_f a' a'', mult_f b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | div_f a' a'', div_f b' b'' => 
+       (f a' b') &&& (f a'' b'')
+     | abs_f a', abs_f b' => 
+       if (f a' b') then _ else _
+     | neg_f a', neg_f b' => 
+       if (f a' b') then _ else _
+     | Symbol a', Symbol b' => 
+       if (Loc_eq a' b') then _ else _
+     | Imm a' , Imm b' => 
+       if (val_eq_dec a' b') then _ else _
+     | Initial a', Initial b' => 
+       if (Loc_eq a' b') then _ else _
+     | _, _ => _
+  end)). Admitted. (*try decide equality; try (apply Loc_eq); try (apply val_eq_dec). 
+Defined.*)
 
 Fixpoint allLocs_dec (l : list Loc) (a b : locs) : bool :=
   match l with
