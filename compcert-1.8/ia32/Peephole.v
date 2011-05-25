@@ -13,6 +13,7 @@ Require Import Mach.
 Require Import Asm.
 Require Import Coq.ZArith.Zbool.
 Require Import PeepholeLocations.
+Require Import Peepholeproof. (* probably backwards, need to move proofs over to that file... *)
 
 (*
 mov r1 (r2);      -- r1 <- mem_0 r2_0
@@ -394,7 +395,11 @@ Fixpoint symExec (c : code) (l : locs) : option locs :=
                  end
   end. 
 
-Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}. Admitted.
+Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}. 
+  refine (fun (a b : SymExpr) =>
+  match a, b with
+  | _, _ => _
+  end). induction a; induction b; decide equality; try (apply Loc_eq); try (apply val_eq_dec).
 
 Fixpoint allLocs_dec (l : list Loc) (a b : locs) : bool :=
   match l with
