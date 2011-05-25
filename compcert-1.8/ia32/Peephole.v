@@ -198,51 +198,51 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
       Some (setAllFlags (l # (Register rd) <- res) res)
   | Psub_rr rd r1 =>
     let res := sub (l # (Register rd)) (l # (Register r1)) in
-      Some (setAllFlags (l # (Register rd) <- (sub (l # (Register rd)) (l # (Register r1)))))
+      Some (setAllFlags (l # (Register rd) <- (sub (l # (Register rd)) (l # (Register r1)))) res)
   | Pimul_rr rd r1 =>
     let res := mult (l # (Register rd)) (l # (Register r1)) in
       Some (l # (Register rd) <- res
-              # (Register (CR ZF)) symUndef
-              # (Register (CR PF)) symUndef
-              # (Register (CR CF)) res
-              # Register (CR SOF) symUndef (* OF is actually set while SF is undef on x86 *)
+              # (Register (CR ZF)) <- symUndef
+              # (Register (CR PF)) <- symUndef
+              # (Register (CR CF)) <- res
+              # (Register (CR SOF)) <- symUndef (* OF is actually set while SF is undef on x86 *)
               )
   | Pimul_ri rd n =>
     let res := mult (l # (Register rd)) (Imm (Vint n)) in
       Some (l # (Register rd) <- res
-              # (Register (CR ZF)) symUndef
-              # (Register (CR PF)) symUndef
-              # (Register (CR CF)) res
-              # Register (CR SOF) symUndef (* OF is actually set while SF is undef on x86 *)     
+              # (Register (CR ZF)) <- symUndef
+              # (Register (CR PF)) <- symUndef
+              # (Register (CR CF)) <- res
+              # (Register (CR SOF)) <- symUndef (* OF is actually set while SF is undef on x86 *)     
            )
   | Pdiv r1 =>
       Some (setAllFlags (l 
         # (Register EAX) <- 
           (div_unsigned (l # (Register EAX)) 
-                        ((l # (Register EDX) <- (Imm Vundef)) (Register r1)))) 
+                        ((l # (Register EDX) <- (Imm Vundef)) # (Register r1)))
         # (Register EDX) <- 
-          (mod_unsigned (l # (Register EAX)) 
-                        ((l # (Register EDX) <- (Imm Vundef)) (Register r1))) symUndef)
+          (mod_unsigned (l # (Register EAX))
+                        ((l # (Register EDX) <- (Imm Vundef)) # (Register r1)))) symUndef)
   | Pidiv r1 =>
       Some (setAllFlags (l 
         # (Register EAX) <- 
           (div_signed (l # (Register EAX)) 
-                      ((l # (Register EDX) <- (Imm Vundef)) (Register r1)))) 
+                      ((l # (Register EDX) <- (Imm Vundef)) # (Register r1)))) 
         # (Register EDX) <- 
           (mod_signed (l # (Register EAX)) 
-                      ((l # (Register EDX) <- (Imm Vundef)) (Register r1))) symUndef)
+                      ((l # (Register EDX) <- (Imm Vundef)) # (Register r1))) symUndef)
   | Pand_rr rd r1 =>
     let res := and (l # (Register rd)) (l # (Register r1)) in
       Some (l # (Register rd) <- res
               # (Register (CR SOF)) <- res  (* OF is cleared, but we can't capture that *)
-              # (Register (CR CF)) <- (Imm (Vint 0))
+              # (Register (CR CF)) <- (Imm (Vint (Int.repr 0)))
               # (Register (CR ZF)) <- res
               # (Register (CR PF)) <- res)
   | Pand_ri rd n =>
-    let res := and (l # (Register rd)) (l # (Imm (Vint n))) in
+    let res := and (l # (Register rd)) (Imm (Vint n)) in
       Some (l # (Register rd) <- res
               # (Register (CR SOF)) <- res  (* OF is cleared, but we can't capture that *)
-              # (Register (CR CF)) <- (Imm (Vint 0))
+              # (Register (CR CF)) <- (Imm (Vint (Int.repr 0)))
               # (Register (CR ZF)) <- res
               # (Register (CR PF)) <- res)
   | Por_rr rd r1 =>

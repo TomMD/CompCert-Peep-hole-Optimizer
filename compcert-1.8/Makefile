@@ -65,7 +65,8 @@ BACKEND=\
   Mach.v Machabstr.v Machtyping.v \
   Bounds.v Stacklayout.v Stacking.v Stackingproof.v Stackingtyping.v \
   Machconcr.v Machabstr2concr.v \
-  Asm.v Asmgen.v Asmgenretaddr.v Asmgenproof1.v Asmgenproof.v Peephole.v Peepholeproof.v
+  Asm.v Asmgen.v Asmgenretaddr.v Asmgenproof1.v Asmgenproof.v \
+  PeepholeLocations.v Peepholeproof.v Peephole.v
 
 # C front-end modules (in cfrontend/)
 
