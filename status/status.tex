@@ -9,9 +9,9 @@
 \section{Introduction}
 
 Compcert's x86 back-end is known to produce inefficient code, even
-when compared to the same ARM and PPC code produced from the same
-source program.  Informal observation suggests there is opportunity
-for performance improvement using an architecture specific peephole
+when compared to ARM and PPC code produced from the same source
+program.  Informal observation suggests there is opportunity for
+performance improvement using an architecture specific peephole
 optimization.
 
 \section{Method}
@@ -45,12 +45,12 @@ flags is a work in progress).  Additionally, the mapping has been
 reworked from a function into an association list, allowing access to
 the set of observed locations.
 
-\paragraph{Shortcomings: }
-Obtaining constraints is still a ways off - we are unclear exactly
+\paragraph{Three Major Shortcomings: }
+(1) Obtaining constraints is still a ways off - we are unclear exactly
 what constraints exist in the x86 architecture as well as what is
-necessary to make the end-to-end compiler proof feasible.  Many
+necessary to make the end-to-end compiler proof feasible. (2) Many
 instructions, especially those working on data larger or smaller than
-32 bits, have no symbolic execution.  Finally, our mapping of
+32 bits, have no symbolic execution.  (3) Finally, our mapping of
 locations has no concept of overlapping locations (ex: {\tt movd (x) \%eax;
 mov (x+4) \%ebx}), which must either be addressed or justified.
 
@@ -79,10 +79,11 @@ but those are unlikely to be useful on the validator - it appears
 having a validator is an important part of proving it's operation
 correct.
 
-To aid the CompCert end-to-end proof, we have a Lemma similar to those
-for other stages (where {\tt tprog} is the optimization of {\tt prog}): {\tt
-  forall (beh: program\_behavior), not\_wrong beh $\rightarrow$ Asm.exec\_program
-  prog beh $\rightarrow$ Asm.exec\_program tprog beh.}.
+To aid the CompCert end-to-end proof, we have an admitted Lemma
+similar to those for other stages (where {\tt tprog} is the
+optimization of {\tt prog}): {\tt forall (beh: program\_behavior),
+  not\_wrong beh $\rightarrow$ Asm.exec\_program prog beh
+  $\rightarrow$ Asm.exec\_program tprog beh.}.
 
 \section{ML Peephole Optimizer}
 The actual peephole optimization only contains a trivial load/store
