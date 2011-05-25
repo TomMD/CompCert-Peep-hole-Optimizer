@@ -63,7 +63,6 @@ Inductive SymExpr : Type :=
   | div_f  : SymExpr -> SymExpr -> SymExpr
   | abs_f  : SymExpr -> SymExpr
   | neg_f  : SymExpr -> SymExpr
-  | Symbol : Loc -> SymExpr
   | Imm    : val -> SymExpr
   | Initial : Loc -> SymExpr.
 
@@ -403,62 +402,46 @@ Notation "a '&&&' b" :=
     else Utils.in_right).
 
 
+Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}.
+  refine (fix f (a b : SymExpr) : {a = b} + {a <> b} :=
+    match a, b as _ return _ with
+      | add _ _, _ => _
+      | _,_ => _
+    end); decide equality; try (apply val_eq_dec); try (apply Loc_eq). 
+Defined.
+
+
 (* don't actually try to run this definition, it's *very* big and *very* slow... *)
 Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}.
   refine (fix f (a b : SymExpr) : {a = b} + {a <> b} :=
   (match a, b as _ return _ with
-     | add a' a'', add b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | sub a' a'', sub b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | mult a' a'', mult b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | div_unsigned a' a'', div_unsigned b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | div_signed a' a'', div_signed b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | mod_unsigned a' a'', mod_unsigned b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | mod_signed a' a'', mod_signed b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | shiftR a' a'', shiftR b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | shiftR_unsigned a' a'', shiftR_unsigned b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | ror a' a'', ror b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | and a' a'', and b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | or a' a'', or b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | neg a', neg b' => 
-       if (f a' b') then _ else _
-     | xor a' a'', xor b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | cmp a' a'', cmp b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | test a' a'', test b' b'' =>  
-       (f a' b') &&& (f a'' b'') (* probably not right because of flags?? *)
-     | add_f a' a'', add_f b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | sub_f a' a'', sub_f b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | mult_f a' a'', mult_f b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | div_f a' a'', div_f b' b'' => 
-       (f a' b') &&& (f a'' b'')
-     | abs_f a', abs_f b' => 
-       if (f a' b') then _ else _
-     | neg_f a', neg_f b' => 
-       if (f a' b') then _ else _
-     | Symbol a', Symbol b' => 
-       if (Loc_eq a' b') then _ else _
-     | Imm a' , Imm b' => 
-       if (val_eq_dec a' b') then _ else _
-     | Initial a', Initial b' => 
-       if (Loc_eq a' b') then _ else _
-     | _, _ => _
-  end)). Admitted. (*try decide equality; try (apply Loc_eq); try (apply val_eq_dec). 
+     | add _ _, add _ _ => Utils.in_left
+     | sub _ _, sub _ _ => Utils.in_left
+     | mult _ _, mult _ _ => Utils.in_left
+     | div_unsigned _ _, div_unsigned _ _ => Utils.in_left 
+     | div_signed _ _, div_signed _ _ => Utils.in_left
+     | mod_unsigned _ _, mod_unsigned _ _ => Utils.in_left
+     | mod_signed _ _, mod_signed _ _ => Utils.in_left
+     | shiftR _ _, shiftR _ _ => Utils.in_left
+     | shiftR_unsigned _ _, shiftR_unsigned _ _ => Utils.in_left
+     | ror _ _, ror _ _ => Utils.in_left
+     | and _ _, and _ _ => Utils.in_left
+     | or _ _, or _ _ => Utils.in_left
+     | neg _, neg _ => Utils.in_left
+     | xor _ _, xor _ _ => Utils.in_left
+     | cmp _ _, cmp _ _ => Utils.in_left
+     | test _ _, test _ _ =>  Utils.in_left
+     | add_f _ _, add_f _ _ => Utils.in_left
+     | sub_f _ _, sub_f _ _ => Utils.in_left
+     | mult_f _ _, mult_f _ _ => Utils.in_left
+     | div_f _ _, div_f _ _ => Utils.in_left
+     | abs_f _, abs_f _ => Utils.in_left
+     | neg_f _, neg_f _ => Utils.in_left
+
+     | Imm a' , Imm b' => if val_eq_dec a' b' then Utils.in_left else Utils.in_right
+     | Initial a', Initial b' => if Loc_eq a' b' then Utils.in_left else Utils.in_right
+     | _, _ => Utils.in_right
+  end)).   Admitted. (*try decide equality; try (apply Loc_eq); try (apply val_eq_dec). 
 Defined.*)
 
 Fixpoint allLocs_dec (l : list Loc) (a b : locs) : bool :=
