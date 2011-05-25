@@ -394,7 +394,23 @@ Fixpoint symExec (c : code) (l : locs) : option locs :=
                  end
   end. 
 
-Definition sameSymbolicExecution (c : option locs) (d : option locs) : bool. Admitted.
+Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}. Admitted.
+
+Fixpoint allLocs_dec (l : list Loc) (a b : locs) : bool :=
+  match l with
+    | nil => true
+    | l' :: ls => 
+      if SymExpr_dec (a # l') (b # l') 
+        then allLocs_dec ls a b
+        else false
+  end.
+
+Definition sameSymbolicExecution (c : option locs) (d : option locs) : bool :=
+  match c, d with
+    | Some c', Some d' => allLocs_dec (elements c' ++ elements d') c' d'
+    | _, _ => false
+  end.
+    
 
 (** peephole_validate validates the code optimized by the untrusted
   optimizer is semantically correct.  We only need to prove that
