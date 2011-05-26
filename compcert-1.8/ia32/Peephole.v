@@ -45,6 +45,7 @@ Inductive SymOp :=
   | SymDivS
   | SymModU
   | SymModS
+  | SymShiftL
   | SymShiftR
   | SymShiftRU
   | SymROR
@@ -61,35 +62,9 @@ Inductive SymOp :=
 Inductive SymExpr : Type :=
   (* Integers *)
   | binOp  : SymOp   -> SymExpr -> SymExpr -> SymExpr
-(*
-  | add    : SymExpr -> SymExpr -> SymExpr
-  | sub    : SymExpr -> SymExpr -> SymExpr
-  | mult   : SymExpr -> SymExpr -> SymExpr
-  | div_unsigned : SymExpr -> SymExpr -> SymExpr
-  | div_signed   : SymExpr -> SymExpr -> SymExpr
-  | mod_unsigned : SymExpr -> SymExpr -> SymExpr
-  | mod_signed   : SymExpr -> SymExpr -> SymExpr
-  | shiftR : SymExpr -> SymExpr -> SymExpr
-  | shiftR_unsigned : SymExpr -> SymExpr -> SymExpr
-  | ror    : SymExpr -> SymExpr -> SymExpr
-  | and    : SymExpr -> SymExpr -> SymExpr
-  | or     : SymExpr -> SymExpr -> SymExpr
-  | xor    : SymExpr -> SymExpr -> SymExpr
-
-
-*)
   | neg    : SymExpr -> SymExpr
 
-  (* Tests *)
-(*
-  | cmp    : SymExpr -> SymExpr -> SymExpr
-  | test   : SymExpr -> SymExpr -> SymExpr  (* modifies x86 status register! *) 
-  (* Floating *)
-  | add_f  : SymExpr -> SymExpr -> SymExpr
-  | sub_f  : SymExpr -> SymExpr -> SymExpr
-  | mult_f : SymExpr -> SymExpr -> SymExpr
-  | div_f  : SymExpr -> SymExpr -> SymExpr
-  *)
+  (* Floating Operations *)
   | abs_f  : SymExpr -> SymExpr
   | neg_f  : SymExpr -> SymExpr
   | Imm    : val -> SymExpr
@@ -104,6 +79,7 @@ Definition div_unsigned := binOp SymDivU.
 Definition div_signed := binOp SymDivS.
 Definition mod_unsigned := binOp SymModU.
 Definition mod_signed := binOp SymModS.
+Definition shiftL := binOp SymShiftL.
 Definition shiftR := binOp SymShiftR.
 Definition shiftR_unsigned := binOp SymShiftRU.
 Definition ror := binOp SymROR.
@@ -316,24 +292,34 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
   | Pxor_ri rd n =>
       Some (l # (Register rd) <- (xor (l # (Register rd)) (Imm (Vint n))))
   | Psal_rcl rd =>
-    (* FIXME!! not sure this is right, I know the 2^n is wrong *)
-      match (l # (Register ECX)) with
-        | Imm (Vint n) => Some (l # (Register rd) <- (mult (l # (Register rd)) (Imm (Vint (Int.repr (2^(Int.intval n)))))))
-        | _ => None
-      end
+    let res := shiftL (l # (Register rd)) (l # (Register ECX)) in
+      Some (l # (Register rd) <- res
+              # (Register (CR CF)) <- res
+              # (Register (CR SOF)) <- res)
   | Psal_ri rd n =>
-      Some (l # (Register rd) <- (mult (l # (Register rd)) (Imm (Vint (Int.repr (2^(Int.intval n)))))))
+    let res := shiftL (l # (Register rd)) (Imm (Vint n)) in
+      Some (setAllFlags (l # (Register rd) <- res) res)
   | Pshr_rcl rd =>
-      Some (l # (Register rd) <- (shiftR (l # (Register rd)) (l # (Register ECX))))
+    let res := shiftR_unsigned (l # (Register rd)) (l # (Register ECX)) in
+      Some (l # (Register rd) <- res
+              # (Register (CR CF)) <- res
+              # (Register (CR SOF)) <- res)
   | Pshr_ri rd n =>
-      Some (l # (Register rd) <- (shiftR_unsigned (l # (Register rd)) (Imm (Vint n))))
+    let res := shiftR_unsigned (l # (Register rd)) (Imm (Vint n)) in
+      Some (setAllFlags (l # (Register rd) <- res) res)
   | Psar_rcl rd =>
-    (* probably not correct *)
-          Some (l # (Register rd) <- (shiftR (l # (Register rd)) (l # (Register ECX))))
+    let res := shiftR (l # (Register rd)) (l # (Register ECX)) in
+      Some (l # (Register rd) <- res
+              # (Register (CR CF)) <- res
+              # (Register (CR SOF)) <- res)
   | Psar_ri rd n =>
-      Some (l # (Register rd) <- (shiftR (l # (Register rd)) (Imm (Vint n))))
+    let res := shiftR (l # (Register rd)) (Imm (Vint n)) in
+      Some (setAllFlags (l # (Register rd) <- res) res)
   | Pror_ri rd n =>
-      Some (l # (Register rd) <- (ror (l # (Register rd)) (Imm (Vint n))))
+    let res := ror (l # (Register rd)) (Imm (Vint n)) in
+      Some (l # (Register rd) <- res
+              # (Register (CR CF)) <- res
+              # (Register (CR SOF)) <- res)
   | Pcmp_rr r1 r2 =>
       None (* Some ((compare_ints (rs r1) (rs r2) rs)) m*)
   | Pcmp_ri r1 n =>
@@ -478,7 +464,6 @@ Definition sameSymbolicExecution (c : option locs) (d : option locs) : bool :=
     | Some c', Some d' => allLocs_dec (elements c' ++ elements d') c' d'
     | _, _ => false
   end.
-    
 
 (** peephole_validate validates the code optimized by the untrusted
   optimizer is semantically correct.  We only need to prove that
@@ -535,15 +520,13 @@ Fixpoint partitionSymExec (c : Asm.code) : (Asm.code * Asm.code) :=
                      end
     end.
 
-Function optimize (c : Asm.code) {measure length c} : Asm.code :=
+Fixpoint optimize (c : Asm.code) {measure length c} : Asm.code :=
   let part := partitionSymExec c in
-    match snd part with
-                 | nil     => opt_window (fst part)
-                 | (r::rs) => opt_window (fst part) ++ (r :: optimize rs)
+    let len := length (fst part) in
+      match snd part with
+        | nil     => opt_window (fst part)
+        | (r::rs) => opt_window (fst part) ++ (r::skipn (len + 1) c)
     end.
-Proof.
-  intros.
-Admitted.
 
 Definition transf_function (f: Asm.code) : res Asm.code :=
   OK (optimize f).
