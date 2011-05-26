@@ -459,9 +459,20 @@ Fixpoint allLocs_dec (l : list Loc) (a b : locs) : bool :=
         else false
   end.
 
+Definition isCR (c : Loc) : bool :=
+  match c with
+    | (Register (CR _)) => true
+    | _ => false
+  end.
+
+(* nfElements == nonFlagElements, needed because the flags don't have to
+ * match exactly, they are treated separately using 'validFlag' *)
+Definition nfElements (c : locs) : list Loc :=
+  filter (fun x => negb (isCR x)) (elements c).
+
 Definition sameSymbolicExecution (c : option locs) (d : option locs) : bool :=
   match c, d with
-    | Some c', Some d' => allLocs_dec (elements c' ++ elements d') c' d'
+    | Some c', Some d' => allLocs_dec (nfElements c' ++ nfElements d') c' d'
     | _, _ => false
   end.
 
