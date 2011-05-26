@@ -465,11 +465,14 @@ Definition isCR (c : Loc) : bool :=
     | _ => false
   end.
 
-Fixpoint validFlags (x : list Loc) (c : locs) (d : locs) : bool := 
-  match x with
+Fixpoint all {A : Type} (p : A -> bool) (xs : list A) : bool :=
+  match filter (fun x => negb (p x)) xs with
     | nil => true
-    | (l::ls) => SymExpr_dec (c # l) symUndef || SymExpr_dec (c # l) (d # l)
+    | _   => false
   end.
+
+Definition validFlags (x : list Loc) (c : locs) (d : locs) : bool := 
+  all (fun l => SymExpr_dec (c # l) symUndef || SymExpr_dec (c # l) (d # l)) x.
 
 Definition sameSymbolicExecution (c : option locs) (d : option locs) : bool :=
   match c, d with
