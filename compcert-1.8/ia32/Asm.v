@@ -107,6 +107,7 @@ Inductive testcond: Type :=
 *)
 
 Inductive instruction: Type :=
+  | Pnop
   (** Moves *)
   | Pmov_rr (rd: ireg) (r1: ireg)       (**r [mov] (32-bit int) *)
   | Pmov_ri (rd: ireg) (n: int)
@@ -447,6 +448,7 @@ Definition exec_store (chunk: memory_chunk) (m: mem)
 
 Definition exec_instr (c: code) (i: instruction) (rs: regset) (m: mem) : outcome :=
   match i with
+  | Pnop => Next (nextinstr rs) m
   (** Moves *)
   | Pmov_rr rd r1 =>
       Next (nextinstr (rs#rd <- (rs r1))) m

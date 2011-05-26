@@ -183,6 +183,7 @@ Definition setAllFlags (l : locs) (e : SymExpr) : locs :=
 (* small step symbolic execution *)
 Definition single_symExec (i : instruction) (l : locs) : option locs :=
   match i with
+  | Pnop => Some l
       (** Moves *)
   | Pmov_rr rd r1 =>
       Some (l # (Register rd) <- (l # (Register r1)))
