@@ -38,25 +38,25 @@ Inductive Loc : Type :=
 
 Inductive SymOp :=
   | SymAdd
-  | SymSub
-  | SymMult
-  | SymDivU
+  | SymAddF
+  | SymAnd
+  | SymCmp
+  | SymDivF
   | SymDivS
-  | SymModU
+  | SymDivU
   | SymModS
+  | SymModU
+  | SymMult
+  | SymMultF
+  | SymOr
+  | SymROR
   | SymShiftL
   | SymShiftR
   | SymShiftRU
-  | SymROR
-  | SymAnd
-  | SymOr
-  | SymXor
-  | SymCmp
-  | SymTest
-  | SymAddF
+  | SymSub
   | SymSubF
-  | SymMultF
-  | SymDivF.
+  | SymTest
+  | SymXor.
 
 Inductive SymExpr : Type :=
   (* Integers *)
@@ -340,13 +340,22 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
               # (Register (CR CF)) <- res
               # (Register (CR SOF)) <- res)
   | Pcmp_rr r1 r2 =>
-      None (* Some ((compare_ints (rs r1) (rs r2) rs)) m*)
+      let res := cmp (l # (Register r1)) (l # (Register r2)) in
+        Some (setAllFlags l res)
   | Pcmp_ri r1 n =>
-      None (* Some ( (compare_ints (rs r1) (Vint n) rs)) m*)
+      Some (setAllFlags l (cmp (l # (Register r1)) (Imm (Vint n))))
   | Ptest_rr r1 r2 =>
-      None (* Some ( (compare_ints (Val.and (rs r1) (rs r2)) Vzero rs)) m *)
+      let res := test (l # (Register r1)) (l # (Register r2)) in
+        Some (l # (Register (CR CF))  <- (Imm (Vint (Int.repr 0)))
+                # (Register (CR SOF)) <- res
+                # (Register (CR ZF))  <- res
+                # (Register (CR PF))  <- res)
   | Ptest_ri r1 n =>
-      None (* Some ( (compare_ints (Val.and (rs r1) (Vint n)) Vzero rs)) m*)
+      let res := test (l # (Register r1)) (Imm (Vint n)) in
+        Some (l # (Register (CR CF))  <- (Imm (Vint (Int.repr 0)))
+                # (Register (CR SOF)) <- res
+                # (Register (CR ZF))  <- res
+                # (Register (CR PF))  <- res)
   | Pcmov c rd r1 =>
      None (*
      (* FIXME!! needs rewrite of eval_testcond *)
