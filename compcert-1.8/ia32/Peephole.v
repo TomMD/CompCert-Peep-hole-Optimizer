@@ -465,14 +465,18 @@ Definition isCR (c : Loc) : bool :=
     | _ => false
   end.
 
-(* nfElements == nonFlagElements, needed because the flags don't have to
- * match exactly, they are treated separately using 'validFlag' *)
-Definition nfElements (c : locs) : list Loc :=
-  filter (fun x => negb (isCR x)) (elements c).
+Fixpoint validFlags (x : list Loc) (c : locs) (d : locs) : bool := 
+  match x with
+    | nil => true
+    | (l::ls) => SymExpr_dec (c # l) symUndef || SymExpr_dec (c # l) (d # l)
+  end.
 
 Definition sameSymbolicExecution (c : option locs) (d : option locs) : bool :=
   match c, d with
-    | Some c', Some d' => allLocs_dec (nfElements c' ++ nfElements d') c' d'
+    | Some c', Some d' =>
+      let (flagC, nonFlagC) := partition (fun x => isCR x) (elements c') in
+        let (flagD, nonFlagD) := partition (fun x => isCR x) (elements d') in
+          allLocs_dec (nonFlagC ++ nonFlagD) c' d' && validFlags (flagC ++ flagD) c' d'
     | _, _ => false
   end.
 
