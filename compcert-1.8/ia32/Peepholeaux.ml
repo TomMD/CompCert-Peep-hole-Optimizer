@@ -5,6 +5,6 @@ open Asm
 
 let ml_optimize f =
   match f with
-  | (Pmov_rm r1 m1) :: (Pmov_mr m2 r2) :: c :: xs when r1 == r2 && m1 == m2 ->
-	(Pmov_rm r1 m1 :: nop :: c :: xs)
+  | Pmov_rm (r1, m1) :: Pmov_mr (m2, r2) :: c :: xs when r1 == r2 && m1 == m2 ->
+	Pmov_rm (r1, m1) :: c :: xs
   | _ -> f
