@@ -14,6 +14,9 @@ Require Import Conventions.
 (*Require Import Peephole.*)
 Require Import Asm.
 
+
+Require Import Coq.Logic.FunctionalExtensionality.
+
 (** This section defines decision procedures for deciding equivalence of register sets **)
 Section Register_Dec.
 
@@ -44,74 +47,6 @@ Section Register_Dec.
     destruct (zeq (Int.unsigned x) (Int.unsigned y)). inversion H0. apply n.
     apply eq_int_int__eq_z. assumption.
   Qed.
-
-  (** a boolean equality predicate for values **)
-  Definition val_eq (v1 v2 : val) : bool.
-  refine (fun v1 v2 => 
-    match v1 with
-      | Vundef => match v2 with
-                    | Vundef => true
-                    | _ => false
-                  end
-      | Vint n => match v2 with
-                    | Vint n' =>  Int.eq n n'
-                    | _ => false
-                  end
-      | Vfloat n => match v2 with
-                      | Vfloat n' => if Float.eq_dec n n' then true else false
-                      | _ => false
-                    end
-      | Vptr b n => match v2 with 
-                      | Vptr b' n' => if zeq b b' 
-                        then Int.eq n n'
-                        else false
-                      | _ => false
-                    end
-    end). 
-  Defined.
-
-  (** a decision procedure for value equality **)
-  Definition val_eq_dec (v1  v2 : val) : {v1 = v2} + {v1 <> v2}.
-  refine (fun v1 v2 => 
-    (if val_eq v1 v2 as b return (val_eq v1 v2 = b -> {v1 = v2} + {v1 <> v2})
-      then fun H : val_eq v1 v2 = true => Utils.in_left
-      else fun H : val_eq v1 v2 = false => Utils.in_right)
-    (refl_equal (val_eq v1 v2))).
-  unfold val_eq in *.
-  induction v1; induction v2; intros; simpl; try discriminate; try reflexivity.
-  f_equal; apply int_eq_true; assumption.
-  case_eq (Float.eq_dec f f0); intros; f_equal.
-  assumption.
-  rewrite H0 in H; inversion H.
-  destruct (zeq b b0). f_equal. assumption. apply int_eq_true;assumption.
-  inversion H. 
-  
-  unfold val_eq in *.
-  induction v1; induction v2; intros; simpl; try discriminate; try reflexivity; unfold not.
-  unfold Int.eq in *; destruct (zeq (Int.unsigned i) (Int.unsigned i0)). 
-  inversion H.
-  intro; apply n. inversion H0; auto.
-  case_eq (Float.eq_dec f f0); intros.
-  rewrite H0 in H; inversion H.
-  apply n; inversion H1; auto.
-  case_eq (zeq b b0); intros. rewrite H0 in H.
-  apply int_eq_false in H. apply H; inversion H1; auto.
-  apply n; inversion H1; auto.
-  Defined.
-
-  (** show that the val_eq predicate is correct: val_eq v1 v2 = true if v1 = v2 *)
-  Theorem val_eq_correct : forall (v1 v2 : val), val_eq v1 v2 = true -> v1 = v2.
-  Proof.
-    intro v1.
-    intros.
-    case_eq (val_eq_dec v1 v2). intros. assumption.
-    intros. induction v1; induction v2; intros; try reflexivity; try discriminate. inversion H. 
-    f_equal; apply int_eq_true; assumption.
-    inversion H. destruct (Float.eq_dec f f0). f_equal; auto. inversion H2.
-    inversion H.  destruct (zeq b b0); f_equal. assumption. apply int_eq_true. assumption.
-    inversion H2. inversion H2.
-  Qed.
- 
 
 
 (* Issues raised in discussion with Xavier Leroy:
@@ -225,11 +160,6 @@ Section Register_Dec.
     apply rs_eq__r_eq; assumption.
   Qed.
 
-  (** the next lemma states equality for complete register sets, but
-  register sets are really functions... hence we import
-  FunctionalExtensionality. This will likely be useful later in the
-  memory proofs as well... *)
-  Require Import Coq.Logic.FunctionalExtensionality.
 
   (** this lemma is perhaps a theorem instead, but anyway, if the
   regs_eq predicate returns true then truly, the two register sets are
