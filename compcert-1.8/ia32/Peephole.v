@@ -13,7 +13,6 @@ Require Import Mach.
 Require Import Asm.
 Require Import Coq.ZArith.Zbool.
 Require Import PeepholeLocations.
-Require Import Peepholeproof. (* probably backwards, need to move proofs over to that file... *)
 
 (*
 mov r1 (r2);      -- r1 <- mem_0 r2_0
@@ -91,10 +90,31 @@ Definition sub_f := binOp SymSubF.
 Definition mult_f := binOp SymMultF.
 Definition div_f := binOp SymDivF.
 
-(* here we use a map to store SymExpr in the symbolic execution. This
-may not be the right choice because it's not immediately apparent how
-to get everything back out of the map -- maybe we need to store a list
-of Locs used as keys? *)
+(* to decide equality of symbolic expressions, we need to decide equality of values *)
+Definition val_eq_dec : forall (v1 v2 : val), {v1 = v2} + {v1 <> v2}.
+refine (fun v1 v2 => 
+  match v1 as v1 return {v1 = v2} + {v1 <> v2} with
+    | Vundef => match v2 with
+                  | Vundef => Utils.in_left
+                  | _ => Utils.in_right
+                end
+    | Vint n => match v2 with
+                  | Vint n' => if Int.eq_dec n n' then Utils.in_left else Utils.in_right
+                  | _ => Utils.in_right
+                end
+    | Vfloat n => match v2 with
+                    | Vfloat n' => if Float.eq_dec n n' then Utils.in_left else Utils.in_right
+                    | _ => Utils.in_right
+                  end
+    | Vptr b n => match v2 with 
+                    | Vptr b' n' => if zeq b b' 
+                      then if Int.eq_dec n n' then Utils.in_left else Utils.in_right
+                      else Utils.in_right
+                    | _ => Utils.in_right
+                  end
+  end); try (f_equal; auto); try discriminate;
+         unfold not; intro prem; inversion prem; auto.
+Defined.
 
 (* define equality for Loc, used in the Loc store *)
 Lemma Loc_eq : forall (x y : Loc), {x = y} +  {x <> y}.
@@ -104,11 +124,13 @@ Proof.
   repeat decide equality; try apply Int.eq_dec.
 Defined.
 
+(* decide equality for symbolic operators *)
 Lemma SymOp_eq : forall (x y : SymOp), {x = y} + {x <> y}.
 Proof.
   decide equality.
-Defined.
+Defined. 
 
+(* decide equality for symbolic expressions. note this is *syntactic* equality *)
 Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}.
   refine (fix f (a b : SymExpr) : {a = b} + {a <> b} :=
     match a, b as _ return _ with
@@ -129,9 +151,6 @@ Notation "a # b <- c" := (update b c a) (at level 1, b at next level).
     "foo". Not sure why I have to restate the decision procedure, but
     there it is *)
 Definition initLocs : locs := initLocStore Loc_eq Initial.
-
-(* Eval compute in (initLocs # (Register EAX)). *)
-(* Eval compute in ((initLocs # (Register EAX) <- (Imm Vundef)) # (Register EAX)). (* = Imm Vundef : SymExpr *) *)
 
 Definition eval_addrmode (a: addrmode) (l : locs) : option SymExpr :=
   match a with Addrmode base ofs const =>
