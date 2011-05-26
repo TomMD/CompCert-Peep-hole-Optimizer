@@ -72,7 +72,7 @@ Extract Constant RTLtyping.infer_type_environment => "RTLtypingaux.infer_type_en
 Extract Constant Coloring.graph_coloring => "Coloringaux.graph_coloring".
 
 (* ia32 Peephole optimizer *)
-Extract Constant Peephole.ml_optimize => "Peephole.ml_optimize".
+Extract Constant Peephole.ml_optimize => "Peepholeaux.ml_optimize".
 
 (* Linearize *)
 Extract Constant Linearize.enumerate_aux => "Linearizeaux.enumerate_aux".
