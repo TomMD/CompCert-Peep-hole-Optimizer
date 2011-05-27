@@ -558,6 +558,32 @@ Proof.
   destruct ssE. assumption. simpl. apply leb_n_n_true. simpl. apply leb_n_n_true.
 Qed.
 
+Fixpoint only_opt_instrs (c : code) : code :=
+  match c with 
+    | nil => nil
+    | x :: xs => match (single_symExec x initLocs) with
+                   | None => nil
+                   | Some _ => x :: only_opt_instrs xs 
+                 end
+  end.
+
+Function basic_block (c : Asm.code) {measure length c} : list Asm.code :=
+  match c with
+    | nil => nil
+    | x :: xs => match (single_symExec x initLocs) with
+                   | None => (x :: nil) :: nil (* singleton of unoptimized instr *)
+                   | Some _ => let opts := only_opt_instrs xs 
+                     in (x :: opts) :: basic_block (skipn (length opts) xs)
+                 end
+  end. intros. simpl. auto.
+
+Fixpoint partitionSymExec (c : Asm.code) : list Asm.code :=
+  match c with
+    | nil => nil
+    | x :: xs => match single_symExec x initLocs with
+                   | None => (x :: nil)
+                   | 
+
 Fixpoint partitionSymExec (c : Asm.code) : (Asm.code * Asm.code) :=
   match c with
     | nil     => (pair nil nil)
@@ -567,13 +593,16 @@ Fixpoint partitionSymExec (c : Asm.code) : (Asm.code * Asm.code) :=
                      end
     end.
 
-Fixpoint optimize (c : Asm.code) {measure length c} : Asm.code :=
+Function optimize (c : Asm.code) {measure length c} : Asm.code :=
   let part := partitionSymExec c in
     let len := length (fst part) in
       match snd part with
         | nil     => opt_window (fst part)
-        | (r::rs) => opt_window (fst part) ++ (r::skipn (len + 1) c)
-    end.
+        | (r::rs) => opt_window (fst part) ++ optimize (r::skipn (len + 1) c)
+    end. intros.
+    destruct (fst (partitionSymExec c)).
+    simpl.  destruct c. inversion teq.
+    
 
 Definition transf_function (f: Asm.code) : res Asm.code :=
   OK (optimize f).
