@@ -585,6 +585,9 @@ let rec labels_of_code accu = function
   | _ :: c ->
       labels_of_code accu c
 
+let print_function_debug oc code =
+  List.iter (print_instruction oc (labels_of_code Labelset.empty code)) code
+
 let print_function oc name code =
   Hashtbl.clear current_function_labels;
   float_literals := [];

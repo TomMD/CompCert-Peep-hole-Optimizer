@@ -11,3 +11,4 @@
 (* *********************************************************************)
 
 val print_program: out_channel -> Asm.program -> unit
+val print_function_debug: out_channel -> Asm.code -> unit
