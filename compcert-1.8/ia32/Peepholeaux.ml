@@ -52,12 +52,9 @@ let rec ml_optimize_loop f n =
 let ml_optimize f =
   print_string "Optimizing...\n" ;
   let g = ml_optimize_loop f 500 in
-    if g = f then g else ml_optimize g
-(*
          print_string "PREOPTIMIZE:\n";
          print_function_debug stdout f;
          print_string "\n";
          print_string "POST:\n";
          print_function_debug stdout g;
          g
-*)
