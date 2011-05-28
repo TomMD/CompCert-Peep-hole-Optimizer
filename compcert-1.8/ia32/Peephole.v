@@ -13,7 +13,8 @@ Require Import Mach.
 Require Import Asm.
 Require Import Coq.ZArith.Zbool.
 Require Import PeepholeLocations.
-
+Require Import Coq.Lists.List.
+Require Import Coq.Program.Basics.
 (*
 mov r1 (r2);      -- r1 <- mem_0 r2_0
 add r2 4;         -- r2 <- r2_0 - 4
@@ -90,6 +91,11 @@ Definition sub_f := binOp SymSubF.
 Definition mult_f := binOp SymMultF.
 Definition div_f := binOp SymDivF.
 
+Inductive Constraint : Type :=
+  | ReadMem  : addrmode -> Constraint
+  | WriteMem : addrmode -> Constraint
+  | DivBy    : SymExpr  -> Constraint.
+
 (* to decide equality of symbolic expressions, we need to decide equality of values *)
 Definition val_eq_dec : forall (v1 v2 : val), {v1 = v2} + {v1 <> v2}.
 refine (fun v1 v2 => 
@@ -142,8 +148,21 @@ Defined.
 (* the type of our location store *)
 Definition locs := @LocStore Loc SymExpr Loc_eq.
 
-Notation "a # b" := (lookup b a) (at level 1, only parsing).
-Notation "a # b <- c" := (update b c a) (at level 1, b at next level).
+Inductive SymState :=
+  | SymSt : list Constraint -> locs -> SymState.
+
+Definition symLocs (s : SymState) : locs :=
+  match s with
+  | SymSt _ l => l
+  end.
+
+Definition symSetLoc (l : Loc) (x : SymExpr) (s : SymState) : SymState :=
+  match s with
+  | SymSt c m => SymSt c (update l  x m)
+  end.
+
+Notation "a # b" := (lookup b (symLocs a)) (at level 1, only parsing).
+Notation "a # b <- c" := (symSetLoc b c a) (at level 1, b at next level).
 
 (** the initial state of our symbolic store returns the initial value
     for a given location. This means that no location is initially
@@ -151,8 +170,9 @@ Notation "a # b <- c" := (update b c a) (at level 1, b at next level).
     "foo". Not sure why I have to restate the decision procedure, but
     there it is *)
 Definition initLocs : locs := initLocStore Loc_eq Initial.
+Definition initSymSt : SymState := SymSt nil initLocs.
 
-Definition eval_addrmode (a: addrmode) (l : locs) : option SymExpr :=
+Definition eval_addrmode (a: addrmode) (l : SymState) : option SymExpr :=
   match a with Addrmode base ofs const =>
     match const with
       | inr (id, ofs') => None
@@ -174,14 +194,14 @@ Definition eval_addrmode (a: addrmode) (l : locs) : option SymExpr :=
 
 Definition symUndef := Imm Vundef.
 
-Definition setAllFlags (l : locs) (e : SymExpr) : locs :=
+Definition setAllFlags (l : SymState) (e : SymExpr) : SymState :=
   l # (Register (CR ZF)) <- e
     # (Register (CR CF)) <- e
     # (Register (CR PF)) <- e
     # (Register (CR SOF)) <- e.
 
 (* small step symbolic execution *)
-Definition single_symExec (i : instruction) (l : locs) : option locs :=
+Definition single_symExec (i : instruction) (l : SymState) : option SymState :=
   match i with
   | Pnop => Some l
       (** Moves *)
@@ -462,7 +482,7 @@ Definition single_symExec (i : instruction) (l : locs) : option locs :=
   end.
 
 
-Fixpoint symExec (c : code) (l : locs) : option locs :=
+Fixpoint symExec (c : code) (l : SymState) : option SymState :=
   match c with
     | nil => Some l
     | i :: is => match (single_symExec i l) with
@@ -479,7 +499,7 @@ Notation "a '&&&' b" :=
     else Utils.in_right).
 
 
-Fixpoint allLocs_dec (l : list Loc) (a b : locs) : bool :=
+Fixpoint allLocs_dec (l : list Loc) (a b : SymState) : bool :=
   match l with
     | nil => true
     | l' :: ls => 
@@ -500,14 +520,14 @@ Fixpoint all {A : Type} (p : A -> bool) (xs : list A) : bool :=
     | _   => false
   end.
 
-Definition validFlags (x : list Loc) (c : locs) (d : locs) : bool := 
+Definition validFlags (x : list Loc) (c : SymState) (d : SymState) : bool := 
   all (fun l => SymExpr_dec (c # l) symUndef || SymExpr_dec (c # l) (d # l)) x.
 
-Definition sameSymbolicExecution (c : option locs) (d : option locs) : bool :=
+Definition sameSymbolicExecution (c : option SymState) (d : option SymState) : bool :=
   match c, d with
     | Some c', Some d' =>
-      let (flagC, nonFlagC) := partition (fun x => isCR x) (elements c') in
-        let (flagD, nonFlagD) := partition (fun x => isCR x) (elements d') in
+      let (flagC, nonFlagC) := partition (fun x => isCR x) (elements (symLocs c')) in
+        let (flagD, nonFlagD) := partition (fun x => isCR x) (elements (symLocs d')) in
           allLocs_dec (nonFlagC ++ nonFlagD) c' d' && validFlags (flagC ++ flagD) c' d'
     | _, _ => false
   end.
@@ -519,9 +539,9 @@ Definition sameSymbolicExecution (c : option locs) (d : option locs) : bool :=
   doesn't return false given certain known-correct conditions, but
   that isn't required.
  *)
-Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) (l : locs) : bool :=
+Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) : bool :=
   if (negb (beq_nat (length c) 0)) && Compare_dec.leb (length d) (length c)
-    then sameSymbolicExecution (symExec c l) (symExec d l)    
+    then sameSymbolicExecution (symExec c initSymSt) (symExec d initSymSt)    
     else false.
 
 Parameter ml_optimize : Asm.code -> Asm.code.
@@ -532,7 +552,7 @@ Parameter ml_optimize : Asm.code -> Asm.code.
   used, otherwise, they are discarded. **)
 Definition opt_window (c : Asm.code) :=
   let c' := ml_optimize c
-  in if peephole_validate c c' initLocs
+  in if peephole_validate c c'
       then c'
       else c.
 
@@ -551,10 +571,10 @@ Proof.
   simpl. remember (Compare_dec.leb (length (ml_optimize (i :: c)))
                  (Datatypes.S (length c))) as len.
   destruct len. remember (sameSymbolicExecution
-              match single_symExec i initLocs with
+              match single_symExec i initSymSt with
               | Some l' => symExec c l'
               | None => None
-              end (symExec (ml_optimize (i :: c)) initLocs)) as ssE.
+              end (symExec (ml_optimize (i :: c)) initSymSt)) as ssE.
   destruct ssE. assumption. simpl. apply leb_n_n_true. simpl. apply leb_n_n_true.
 Qed.
 
@@ -581,7 +601,7 @@ Qed.
 Fixpoint only_opt_instrs (c : code) : code :=
   match c with 
     | nil => nil
-    | x :: xs => match (single_symExec x initLocs) with
+    | x :: xs => match (single_symExec x initSymSt) with
                    | None => nil
                    | Some _ => x :: only_opt_instrs xs 
                  end
@@ -590,40 +610,38 @@ Fixpoint only_opt_instrs (c : code) : code :=
 Function basic_block (c : Asm.code) {measure length c} : list Asm.code :=
   match c with
     | nil => nil
-    | x :: xs => match (single_symExec x initLocs) with
+    | x :: xs => match (single_symExec x initSymSt) with
                    | None => (x :: nil) :: nil (* singleton of unoptimized instr *)
                    | Some _ => let opts := only_opt_instrs xs 
                      in (x :: opts) :: basic_block (skipn (length opts) xs)
                  end
   end. intros. simpl. auto.
+Admitted.
 
-Fixpoint partitionSymExec (c : Asm.code) : list Asm.code :=
-  match c with
-    | nil => nil
-    | x :: xs => match single_symExec x initLocs with
-                   | None => (x :: nil)
-                   | 
+Definition concat (c : list Asm.code) : Asm.code := fold_left (fun a b => a ++ b) c nil.
+
+Definition optimize (c : Asm.code) : Asm.code :=
+  let parts := basic_block c in concat parts. (* (map opt_window parts). *)
 
 Fixpoint partitionSymExec (c : Asm.code) : (Asm.code * Asm.code) :=
   match c with
     | nil     => (pair nil nil)
-    | (x::xs) => match single_symExec x initLocs with
+    | (x::xs) => match single_symExec x initSymSt with
                    | None => pair nil (x::xs)
                    | _    => let (cs,bs) := partitionSymExec xs in pair (x::cs) bs
                      end
     end.
 
-Function optimize (c : Asm.code) {measure length c} : Asm.code :=
+
+Function optimize2 (c : Asm.code) {measure length c} : Asm.code :=
   let part := partitionSymExec c in
     let len := length (fst part) in
       match snd part with
         | nil     => opt_window (fst part)
-        | (r::rs) => opt_window (fst part) ++ optimize (r::skipn (len + 1) c)
-    end. intros.
-    destruct (fst (partitionSymExec c)).
-    simpl.  destruct c. inversion teq.
+        | (r::rs) => opt_window (fst part) ++ optimize2 (r::skipn (len + 1) c)
+    end.
+Admitted.
     
-
 Definition transf_function (f: Asm.code) : res Asm.code :=
   OK (optimize f).
 
