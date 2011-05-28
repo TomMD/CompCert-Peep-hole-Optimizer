@@ -1,18 +1,36 @@
-mult2:
-1) A load/store issue
-    movl    %edx, 0(%esp)
-    movl    0(%esp), %edx
-  --->
-    movl    %edx, 0(%esp)
-2) Use of leal where addl is probably faster
-    leal 0(,%eax,2), %eax
-  --->
-    add %eax, %eax
- 
-mult1:
-1) The same load/store issue.
-2) This function is a nop - do we want to look hard at how ccomp
-builds it's functions and reduce the enter/exit overhead?
+1) Instruction weakening
+We can use simple add / sub calls for things like decrement.
+Similarly, we can shift instead of multiply.
+Some observed instructions:
+   leal    -1(%ebx), %ebx
+   leal    0(,%esi,2), %eax
+   leal    0(%ebx,%ebx,4), %eax			(eax <- ebx + 4*ebx)
+   leal    0(%ebx,%ebx,2), %esi			(esi <- ebx + 2*ebx)
+   leal    1(%ebx), %ebx			(ebx <- ebx + 1)
+   leal    0(,%eax,4), %eax			(eax <- eax*4)
+   leal    0(,%eax,2), %eax			(eax <- eax + eax)
+   leal    0(%eax,%edi,1), %eax			(eax <- eax + edi)
 
-mult4:
-1) leal to perform multiplication by a power of two (should use a left shift 'sall')
+
+2) In absence of aliasing, we can remove load/store issues:
+   ... but I can't find such an issue in the code passed to the optimizer.
+  it only appears in the final code (move a result to/from stack).
+
+3) But be careful - we can't optimize out the 2nd "movl 12(%esp), %edx" due
+to aliasing issue:
+
+        movl    12(%esp), %edx
+        movl    0(%edx), %esi
+        movl    12(%esp), %edx
+
+This is a painfully common pattern.
+
+... but it should be possible to optimize away the FIRST movl to get:
+
+	nop
+        movl    0(%edx), %esi
+        movl    12(%esp), %edx
+
+Except... how do we symbolically execute this to verify it's the same?
+
+4) There's also the issue of invariant hoisting... which we can't do right now (we can't cross a label)  the size of our blocks are painfully small.
