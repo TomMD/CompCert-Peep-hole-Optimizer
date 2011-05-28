@@ -611,7 +611,7 @@ Function basic_block (c : Asm.code) {measure length c} : list Asm.code :=
   match c with
     | nil => nil
     | x :: xs => match (single_symExec x initSymSt) with
-                   | None => (x :: nil) :: nil (* singleton of unoptimized instr *)
+                   | None => (x :: nil) :: (basic_block xs) (* singleton of unoptimized instr *)
                    | Some _ => let opts := only_opt_instrs xs 
                      in (x :: opts) :: basic_block (skipn (length opts) xs)
                  end
