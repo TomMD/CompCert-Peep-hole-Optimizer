@@ -19,11 +19,11 @@ Section PRESERVATION.
 Variable prog: Asm.program.
 Variable tprog: Asm.program.
 Hypothesis TRANSF: peephole_transf_program prog = Errors.OK tprog.
-Variable match_states : Asm.state -> Asm.state -> Prop.
-Variable measure : Asm.state -> nat.
 
 Theorem peephole_correct :
-   forall (st1 : state) (t : trace) (st1' : state),
+   forall (match_states : Asm.state -> Asm.state -> Prop)
+          (measure : Asm.state -> nat)
+          (st1 : state) (t : trace) (st1' : state),
    step (Genv.globalenv prog) st1 t st1' ->
    forall st2 : state,
    match_states st1 st2 ->
@@ -33,7 +33,7 @@ Theorem peephole_correct :
 Proof. Admitted.
 
 Lemma transf_initial_states:
-  forall st1, Asm.initial_state prog st1 ->
+  forall match_states st1, Asm.initial_state prog st1 ->
   exists st2, Asm.initial_state tprog st2 /\ match_states st1 st2.
 Proof.
 Admitted.
@@ -53,7 +53,7 @@ Admitted.
 
 
 Lemma transf_final_states:
-  forall st1 st2 r, 
+  forall match_states st1 st2 r, 
   match_states st1 st2 -> Asm.final_state st1 r -> Asm.final_state st2 r.
 Proof.
 Admitted.
@@ -62,11 +62,13 @@ Admitted.
   generalize (preg_val _ _ _ AX AG). rewrite H1. intros LD; inv LD. auto.
 Qed. *)
 
-
 Theorem transf_program_correct :
   forall (beh: program_behavior), not_wrong beh ->
   Asm.exec_program prog beh -> Asm.exec_program tprog beh.
 Proof.
+Admitted.
+
+(*
   unfold exec_program; intros.
   (* the below is a "proof" of hte same form as Mach -> Asm, but it's
   not the right approach i think.... but it suggests a future
@@ -76,6 +78,7 @@ Proof.
   eexact transf_final_states.  
   eexact peephole_correct.  
 Qed.
+*)
 
 End PRESERVATION.
 (* above I've sketched in the proof, based on Mach->Asm and stubbed in
