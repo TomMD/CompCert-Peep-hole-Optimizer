@@ -23,10 +23,12 @@ let rec windowNPeephole n optFunc is =
       | [] -> windowNPeephole n optFunc rest
       | (o::os) -> o :: windowNPeephole n optFunc (append os rest)
 
-let loadStore (is : instruction list) : instruction list=
+let loadStore (is : instruction list) : instruction list =
   match is with
-  | Pmov_rm (r1, m1) :: Pmov_mr (m2, r2) :: xs when r1 == r2 && m1 == m2 ->
-	Pmov_rm (r1, m1) :: Pnop :: xs
+  | Pmov_rm (r1, m1) :: Pmov_mr (m2, r2) :: xs when r1 = r2 && m1 = m2 ->
+        Pmov_rm (r1, m1) :: Pnop :: xs
+  | Pmov_mr (m1, r1) :: Pmov_rm (r2, m2) :: xs when r1 = r2 && m1 = m2 ->
+	Pmov_mr (m1, r1) :: Pnop :: xs
   | _ -> is
 
 (* All optimizations that use a window of 2 adjacent instructions can go here *)
@@ -43,16 +45,19 @@ let singlePass : instruction list -> instruction list =
   fold_left compose (fun x -> x) optimizations
 
 
-let rec ml_optimize_loop f =
-	let g = singlePass f in
-	  if g == f then g else ml_optimize_loop g
+let rec ml_optimize_loop f n =
+  let g = singlePass f in
+    if n == 0 then g else ml_optimize_loop g (n-1)
 
 let ml_optimize f =
-  let g = ml_optimize_loop f in
-    (* print_string "Running optimizer...\n"; *)
-   print_int (length g);
-   print_int (length f);
-   print_function_debug stderr f;
-   print_function_debug stderr g;
-   g
-
+  print_string "Optimizing...\n" ;
+  let g = ml_optimize_loop f 500 in
+    if g = f then g else ml_optimize g
+(*
+         print_string "PREOPTIMIZE:\n";
+         print_function_debug stdout f;
+         print_string "\n";
+         print_string "POST:\n";
+         print_function_debug stdout g;
+         g
+*)
