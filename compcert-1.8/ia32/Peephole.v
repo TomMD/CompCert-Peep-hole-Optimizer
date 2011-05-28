@@ -558,6 +558,26 @@ Proof.
   destruct ssE. assumption. simpl. apply leb_n_n_true. simpl. apply leb_n_n_true.
 Qed.
 
+Lemma skipn_single_S (A : Type) : forall (a : A) l n,
+  ((length (skipn (Datatypes.S n) (a::l))) = (length (skipn n l))).
+Proof.
+  auto.
+Qed.
+
+Lemma skipn_S  (A : Type ): forall (l :list A) n,
+  ((length (skipn (Datatypes.S n) l)) <= (length (skipn n l)))%nat.
+Proof.
+  intros.
+  generalize dependent l.
+  induction n.
+  intros. destruct l. auto. simpl. auto.
+  intros.
+  destruct l. simpl. auto.
+  rewrite skipn_single_S. rewrite skipn_single_S.
+  apply IHn. 
+Qed.
+
+
 Fixpoint only_opt_instrs (c : code) : code :=
   match c with 
     | nil => nil
