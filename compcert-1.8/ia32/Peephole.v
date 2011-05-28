@@ -597,6 +597,15 @@ Proof.
   apply IHn. 
 Qed.
 
+Lemma skipn_le (A : Type) : forall n (l :list A),
+  ((length (skipn n l)) <= length l)%nat.
+Proof.
+  induction n.
+  auto.
+  intros.
+  assert ((length (skipn (Datatypes.S n) l)) <= (length (skipn n l)))%nat by apply skipn_S.
+  eapply le_trans. apply H. apply IHn.
+Qed.  
 
 Fixpoint only_opt_instrs (c : code) : code :=
   match c with 
@@ -615,8 +624,11 @@ Function basic_block (c : Asm.code) {measure length c} : list Asm.code :=
                    | Some _ => let opts := only_opt_instrs xs 
                      in (x :: opts) :: basic_block (skipn (length opts) xs)
                  end
-  end. intros. simpl. auto.
-Admitted.
+  end.
+  intros. simpl.
+  apply le_lt_n_Sm. apply skipn_le.
+  auto.
+Qed.
 
 Definition concat (c : list Asm.code) : Asm.code := fold_left (fun a b => a ++ b) c nil.
 
