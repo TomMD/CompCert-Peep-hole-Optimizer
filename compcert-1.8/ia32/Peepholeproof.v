@@ -30,6 +30,31 @@ Inductive symFlags_match : crbit -> SymState -> SymState -> Prop :=
     lookup (Register (CR f)) (symLocs s1) = symUndef ->
     symFlags_match f s1 s2.
 
+(* lemma 1
+
+Let b be a block and c an instruction list starting with
+a branching instruction. If Σ |- (b; c), R, F, M →* c, R', F', M'
+and α(b) = (m, s), then Σ|- [[m]](R, F, M ) = (R', F', M') and
+Σ, (R, F, M ) |= s. *) 
+
+(* lemma 2
+
+Let b be a block and c an instruction list starting with a branching
+instruction. Let α(b) = (m, s). If Σ, (R,F,M) |= s, then there exists
+R', F', M' such that Σ|- (b; c), R, F, M →* c, R , F , M
+
+*)   
+
+
+(* lemma 3
+
+let b1, b2 be two blocks and c1,c2, two instruction sequences starting
+with branching instructions. If V(b1,b2) = true and Σ|-(b1;c1),R,F,M
+->* c1,R',F',M' then Σ |- (b2;c2), R, F, M ->* c2,R',F',M'
+
+*)
+
+
 (* so, here is a trivial match Prop for symbolic states. it needs to be fleshed out *)
 Inductive symStates_match : SymState -> SymState -> Prop :=
 | symStates_match_intro : forall s1 s2, symStates_match s1 s2.
