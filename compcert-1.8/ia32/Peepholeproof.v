@@ -15,21 +15,6 @@ Require Import Peephole.
 Require Import Asm.
 Require Import PeepholeLocations.
 
-
-(* symbolic flags matching proposition. A flag is considered to match
-   if it has the same value between two states, or if in the left state
-   it is undefined. We consider it valid for a flag to become more
-   defined. *)
-Inductive symFlags_match : crbit -> SymState -> SymState -> Prop :=
-| symFlags_match_exact : 
-  forall (f : crbit)  (s1 s2 : SymState),
-    lookup (Register (CR f)) (symLocs s1) = lookup (Register (CR f)) (symLocs s2) ->
-    symFlags_match f s1 s2
-| symFlags_match_def : 
-  forall f s1 s2,
-    lookup (Register (CR f)) (symLocs s1) = symUndef ->
-    symFlags_match f s1 s2.
-
 (* lemma 1
 
 Let b be a block and c an instruction list starting with
@@ -55,11 +40,65 @@ with branching instructions. If V(b1,b2) = true and Σ|-(b1;c1),R,F,M
 *)
 
 
-(* so, here is a trivial match Prop for symbolic states. it needs to be fleshed out *)
+(** Symbolic States Match
+
+   Here we define a series of Inductive Propositions which define what
+   it means for two symbolic states to be equivalent. This is
+   different than strict equality, particularly in the case of
+   flags. We allow flags becoming more defined to still equate to
+   equivalence. *)
+
+Inductive symFlags_match : crbit -> SymState -> SymState -> Prop :=
+| symFlags_match_exact : 
+  forall (f : crbit)  (s1 s2 : SymState),
+    lookup (Register (CR f)) (symLocs s1) = lookup (Register (CR f)) (symLocs s2) ->
+    symFlags_match f s1 s2
+| symFlags_match_def : 
+  forall f s1 s2,
+    lookup (Register (CR f)) (symLocs s1) = symUndef ->
+    symFlags_match f s1 s2.
+
+Inductive symAllFlags_match : SymState -> SymState -> Prop :=
+| symAllFlags_match_intro:
+  forall s1 s2,
+    symFlags_match ZF s1 s2 ->
+    symFlags_match CF s1 s2 ->
+    symFlags_match PF s1 s2 ->
+    symFlags_match SOF s1 s2 ->
+    symAllFlags_match s1 s2.
+
+Inductive symAllRegs_match : SymState -> SymState -> Prop :=
+| symAllRegs_match_intro :
+  forall s1 s2,
+
+    symAllRegs_match s1 s2.
+
+Inductive symMemory_match : SymState -> SymState -> Prop :=
+| symMemory_match_intro : 
+  forall s1 s2,
+    symMemory_match s1 s2.
+
 Inductive symStates_match : SymState -> SymState -> Prop :=
-| symStates_match_intro : forall s1 s2, symStates_match s1 s2.
+| symStates_match_intro : 
+  forall s1 s2, 
+    symAllFlags_match s1 s2 ->
+    symAllRegs_match s1 s2 ->
+    symMemory_match s1 s2 ->
+    subset (constraints s1) (constraints s2) = true ->
+    symStates_match s1 s2.
   
-  
+
+(* Some lemmas related to the above propositions *)
+Lemma validFlags_symAllFlags_match : forall (l : list Loc) (s1 s2 : SymState),
+  forall (f : Loc), isCR f = true ->
+    validFlags l s1 s2 = true ->
+    symAllRegs_match s1 s2.
+Proof.
+  intros.
+  constructor.
+Qed.
+
+
 
 Lemma peephole_validate_length : forall (c d : code),
   peephole_validate c d = true -> 
