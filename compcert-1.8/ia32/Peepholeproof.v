@@ -14,6 +14,60 @@ Require Import Conventions.
 Require Import Peephole.
 Require Import Asm.
 
+Inductive symFlags_match : SymState -> SymState -> Prop :=
+| symFlags_match_exact : forall s1 s2,
+  (* some Prop on flags matching exactly *) 
+  symFlags_match s1 s2
+| symFlags_match_def : forall s1 s2,
+  (* some prop on flags being more defined *) 
+  symFlags_match s1 s2.
+
+(* so, here is a trivial match Prop for symbolic states. it needs to be fleshed out *)
+Inductive symStates_match : SymState -> SymState -> Prop :=
+| symStates_match_intro : forall s1 s2, symStates_match s1 s2.
+  
+  
+
+Lemma peephole_validate_length : forall (c d : code),
+  peephole_validate c d = true -> 
+  (length c <> 0)%nat /\ Compare_dec.leb (length d)  (length c) = true.
+Proof.
+  destruct c; intros.
+  inversion H.
+  split.
+  simpl. discriminate.
+  simpl in H.
+  match goal with
+    | [ _ : (if ?B then _ else _) = _ |- _ ] => case_eq B
+  end.
+  intros. auto. 
+  intro contra. rewrite contra in H. inversion H.
+Qed.  
+
+Lemma peephole_validate_correct : forall (c d : code),
+  peephole_validate c d = true -> forall (s : SymState),
+    symExec c s = symExec d s.
+Proof.
+  destruct c.
+  intros. inversion H.
+  destruct d.
+  intros. simpl in H. unfold sameSymbolicExecution in H.
+  destruct (single_symExec i initSymSt).
+  unfold peephole_validate in H.
+  simpl in H.
+Admitted.
+(*
+  rewrite H0 in H. simpl in H.
+  
+  match goal with
+    | [ _ : (if ?B then _ else _) = _ |- _ ] => destruct B
+  end.
+  inversion H.
+
+  assert (Compare_dec.leb (@length instruction nil) (length (i::c)) = true) by
+    (apply peephole_validate_length in H; inversion H; auto).
+  
+*)
 Section PRESERVATION.
 
 Variable prog: Asm.program.
@@ -77,8 +131,7 @@ Admitted.
   eexact  transf_initial_states.  
   eexact transf_final_states.  
   eexact peephole_correct.  
-Qed.
-*)
+Qed. *)
 
 End PRESERVATION.
 (* above I've sketched in the proof, based on Mach->Asm and stubbed in
