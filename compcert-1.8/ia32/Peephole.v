@@ -96,6 +96,16 @@ Inductive Constraint : Type :=
   | WriteMem : addrmode -> Constraint
   | DivBy    : SymExpr  -> Constraint.
 
+Definition addrmode_eq : forall (a1 a2 : addrmode), {a1 = a2} + {a1 <> a2}.
+Proof.
+  decide equality.  decide equality. apply Int.eq_dec. decide equality.
+  apply Int.eq_dec.  SearchAbout ident. apply ident_eq.
+  decide equality. decide equality. apply Int.eq_dec.
+  apply ireg_eq.
+  decide equality. apply ireg_eq.
+Defined.
+
+
 (* to decide equality of symbolic expressions, we need to decide equality of values *)
 Definition val_eq_dec : forall (v1 v2 : val), {v1 = v2} + {v1 <> v2}.
 refine (fun v1 v2 => 
@@ -145,6 +155,12 @@ Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}.
     end); decide equality; try (apply val_eq_dec); try (apply Loc_eq) ; try (apply SymOp_eq).
 Defined.
 
+
+Definition constraint_eq : forall (c1 c2 : Constraint), {c1 = c2} + {c1 <> c2}.
+Proof.
+ decide equality. apply addrmode_eq. apply addrmode_eq. apply SymExpr_dec.
+Defined.
+
 (* the type of our location store *)
 Definition locs := @LocStore Loc SymExpr Loc_eq.
 
@@ -164,6 +180,11 @@ Definition symLocs (s : SymState) : locs :=
 Definition symSetLoc (l : Loc) (x : SymExpr) (s : SymState) : SymState :=
   match s with
   | SymSt c m => SymSt c (update l  x m)
+  end.
+
+Definition constraints (s : SymState) : list Constraint :=
+  match s with
+  | SymSt c _ => c
   end.
 
 Notation "a # b" := (lookup b (symLocs a)) (at level 1, only parsing).
@@ -540,6 +561,13 @@ Fixpoint all {A : Type} (p : A -> bool) (xs : list A) : bool :=
     | _   => false
   end.
 
+(* Test if 'a' is a subset of 'b' *)
+Fixpoint subset (a b : list Constraint) : bool :=
+  match a with
+    | nil => true
+    | (x::xs) => existsb (fun z => constraint_eq z x) b && subset xs b
+  end.
+
 Definition validFlags (x : list Loc) (c : SymState) (d : SymState) : bool := 
   all (fun l => SymExpr_dec (c # l) symUndef || SymExpr_dec (c # l) (d # l)) x.
 
@@ -548,7 +576,9 @@ Definition sameSymbolicExecution (c : option SymState) (d : option SymState) : b
     | Some c', Some d' =>
       let (flagC, nonFlagC) := partition (fun x => isCR x) (elements (symLocs c')) in
         let (flagD, nonFlagD) := partition (fun x => isCR x) (elements (symLocs d')) in
-          allLocs_dec (nonFlagC ++ nonFlagD) c' d' && validFlags (flagC ++ flagD) c' d'
+          allLocs_dec (nonFlagC ++ nonFlagD) c' d'
+          && validFlags (flagC ++ flagD) c' d'
+          && subset (constraints d') (constraints c')
     | _, _ => false
   end.
 
@@ -632,25 +662,6 @@ Definition concat (c : list Asm.code) : Asm.code := fold_left (fun a b => a ++ b
 
 Definition optimize (c : Asm.code) : Asm.code :=
   let parts := basic_block c in concat (map opt_window parts).
-
-Fixpoint partitionSymExec (c : Asm.code) : (Asm.code * Asm.code) :=
-  match c with
-    | nil     => (pair nil nil)
-    | (x::xs) => match single_symExec x initSymSt with
-                   | None => pair nil (x::xs)
-                   | _    => let (cs,bs) := partitionSymExec xs in pair (x::cs) bs
-                     end
-    end.
-
-
-Function optimize2 (c : Asm.code) {measure length c} : Asm.code :=
-  let part := partitionSymExec c in
-    let len := length (fst part) in
-      match snd part with
-        | nil     => opt_window (fst part)
-        | (r::rs) => opt_window (fst part) ++ optimize2 (r::skipn (len + 1) c)
-    end.
-Admitted.
     
 Definition transf_function (f: Asm.code) : res Asm.code :=
   OK (optimize f).
