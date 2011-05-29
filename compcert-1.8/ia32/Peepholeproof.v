@@ -13,14 +13,22 @@ Require Import Stacklayout.
 Require Import Conventions.
 Require Import Peephole.
 Require Import Asm.
+Require Import PeepholeLocations.
 
-Inductive symFlags_match : SymState -> SymState -> Prop :=
-| symFlags_match_exact : forall s1 s2,
-  (* some Prop on flags matching exactly *) 
-  symFlags_match s1 s2
-| symFlags_match_def : forall s1 s2,
-  (* some prop on flags being more defined *) 
-  symFlags_match s1 s2.
+
+(* symbolic flags matching proposition. A flag is considered to match
+   if it has the same value between two states, or if in the left state
+   it is undefined. We consider it valid for a flag to become more
+   defined. *)
+Inductive symFlags_match : crbit -> SymState -> SymState -> Prop :=
+| symFlags_match_exact : 
+  forall (f : crbit)  (s1 s2 : SymState),
+    lookup (Register (CR f)) (symLocs s1) = lookup (Register (CR f)) (symLocs s2) ->
+    symFlags_match f s1 s2
+| symFlags_match_def : 
+  forall f s1 s2,
+    lookup (Register (CR f)) (symLocs s1) = symUndef ->
+    symFlags_match f s1 s2.
 
 (* so, here is a trivial match Prop for symbolic states. it needs to be fleshed out *)
 Inductive symStates_match : SymState -> SymState -> Prop :=
