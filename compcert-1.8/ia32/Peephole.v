@@ -105,7 +105,6 @@ Proof.
   decide equality. apply ireg_eq.
 Defined.
 
-
 (* to decide equality of symbolic expressions, we need to decide equality of values *)
 Definition val_eq_dec : forall (v1 v2 : val), {v1 = v2} + {v1 <> v2}.
 Proof.
@@ -129,13 +128,9 @@ Defined.
 
 (* decide equality for symbolic expressions. note this is *syntactic* equality *)
 Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}.
-  refine (fix f (a b : SymExpr) : {a = b} + {a <> b} :=
-    match a, b as _ return _ with
-      | binOp _ _ _, _ => _
-      | _,_ => _
-    end); decide equality; try (apply val_eq_dec); try (apply Loc_eq) ; try (apply SymOp_eq).
+Proof.
+  decide equality; try (apply val_eq_dec); try (apply Loc_eq) ; try (apply SymOp_eq).
 Defined.
-
 
 Definition constraint_eq : forall (c1 c2 : Constraint), {c1 = c2} + {c1 <> c2}.
 Proof.
@@ -503,7 +498,6 @@ Definition single_symExec (i : instruction) (l : SymState) : option SymState :=
       (* Stuck                             (**r treated specially below *)*)
   end.
 
-
 Fixpoint symExec (c : code) (l : SymState) : option SymState :=
   match c with
     | nil => Some l
@@ -549,17 +543,19 @@ Fixpoint subset (a b : list Constraint) : bool :=
     | (x::xs) => existsb (fun z => constraint_eq z x) b && subset xs b
   end.
 
+(* A valid flag is one with the same definition or one that becomes
+  "more defined" from a previous symUndef value. *)
 Definition validFlags (x : list Loc) (c : SymState) (d : SymState) : bool := 
   all (fun l => SymExpr_dec (c # l) symUndef || SymExpr_dec (c # l) (d # l)) x.
 
 Definition sameSymbolicExecution (c : option SymState) (d : option SymState) : bool :=
   match c, d with
     | Some c', Some d' =>
-      let (flagC, nonFlagC) := partition (fun x => isCR x) (elements (symLocs c')) in
-        let (flagD, nonFlagD) := partition (fun x => isCR x) (elements (symLocs d')) in
+      let nonFlagC := filter (fun x => negb (isCR x)) (elements (symLocs c')) in
+        let nonFlagD := filter (fun x => negb (isCR x)) (elements (symLocs d')) in
           allLocs_dec (nonFlagC ++ nonFlagD) c' d'
-          && validFlags (flagC ++ flagD) c' d'
-          && subset (constraints d') (constraints c')
+           && validFlags (map (compose Register CR) (ZF:: CF:: PF:: SOF::nil)) c' d'
+           && subset (constraints d') (constraints c')
     | _, _ => false
   end.
 
