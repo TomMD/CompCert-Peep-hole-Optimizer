@@ -148,9 +148,14 @@ Defined.
 (* the type of our location store *)
 Definition locs := @LocStore Loc SymExpr Loc_eq.
 
+(* A "SymState" encodes the concept of the state of a symbolic execution.
+   It includes a mapping of locations to symbolic expressions and set
+   of contraints (operations that could cause exceptions or other bad behavior).
+  *)
 Inductive SymState :=
   | SymSt : list Constraint -> locs -> SymState.
 
+(* Helper functions & notation to modify the 'locs' of a SymState *)
 Definition symLocs (s : SymState) : locs :=
   match s with
   | SymSt _ l => l
@@ -163,6 +168,23 @@ Definition symSetLoc (l : Loc) (x : SymExpr) (s : SymState) : SymState :=
 
 Notation "a # b" := (lookup b (symLocs a)) (at level 1, only parsing).
 Notation "a # b <- c" := (symSetLoc b c a) (at level 1, b at next level).
+
+
+(* Helper functions to modify the constraints of a SymState *)
+Definition readMem  (l : addrmode) (s : SymState) : SymState :=
+  match s with
+    | SymSt c mapping => SymSt (ReadMem l::c) mapping
+  end.
+
+Definition writeMem (l : addrmode) (s : SymState) : SymState :=
+  match s with
+    | SymSt c mapping => SymSt (WriteMem l ::c) mapping
+  end.
+
+Definition divBy (e : SymExpr) (s : SymState) : SymState :=
+  match s with
+    | SymSt c mapping => SymSt (DivBy e :: c) mapping
+  end.
 
 (** the initial state of our symbolic store returns the initial value
     for a given location. This means that no location is initially
@@ -210,9 +232,9 @@ Definition single_symExec (i : instruction) (l : SymState) : option SymState :=
   | Pmov_ri rd n =>
       Some (l # (Register rd) <- (Imm (Vint n)))
   | Pmov_rm rd a =>
-      Some (l # (Register rd) <- (l # (Memory a)))
+      Some (readMem a (l # (Register rd) <- (l # (Memory a))))
   | Pmov_mr a r1 =>
-      Some (l # (Memory a) <- (l # (Register r1)))
+      Some (writeMem a (l # (Memory a) <- (l # (Register r1))))
   | Pmovd_fr rd r1 =>
       Some (l # (Register rd) <- (l # (Register r1)))
   | Pmovd_rf rd r1 => 
@@ -222,17 +244,17 @@ Definition single_symExec (i : instruction) (l : SymState) : option SymState :=
   | Pmovsd_fi rd n =>
       Some (l # (Register rd) <- (Imm (Vfloat n))) 
   | Pmovsd_fm rd a =>
-      Some (l # (Register rd) <- (l # (Memory a)))
+      Some (readMem a (l # (Register rd) <- (l # (Memory a))))
   | Pmovsd_mf a r1 =>
-      Some (l # (Memory a) <- (l # (Register r1)))
+      Some (writeMem a (l # (Memory a) <- (l # (Register r1))))
   | Pfld_f r1 =>
       Some (l # (Register ST0) <- (l # (Register r1)))  (* We don't track flags for the FPU *)
   | Pfld_m a =>
-      Some (l # (Memory a) <- (l # (Register ST0)))
+      Some (writeMem a (l # (Memory a) <- (l # (Register ST0))))
   | Pfstp_f rd =>
       Some (l # (Register rd) <- (l # (Register ST0)))
   | Pfstp_m a =>
-      Some (l # (Memory a) <- (l # (Register ST0)))
+      Some (writeMem a (l # (Memory a) <- (l # (Register ST0))))
   (** Moves with conversion -- Currently unsupported *)
   | Pmovb_mr a r1 =>
       None (* exec_store Mint8unsigned m a rs r1 *)
@@ -294,21 +316,19 @@ Definition single_symExec (i : instruction) (l : SymState) : option SymState :=
               # (Register (CR SOF)) <- symUndef (* OF is actually set while SF is undef on x86 *)     
            )
   | Pdiv r1 =>
-      Some (setAllFlags (l 
+      let r1Val := (l # (Register EDX) <- (Imm Vundef)) # (Register r1) in
+      Some (divBy r1Val (setAllFlags (l
         # (Register EAX) <- 
-          (div_unsigned (l # (Register EAX)) 
-                        ((l # (Register EDX) <- (Imm Vundef)) # (Register r1)))
+          (div_unsigned (l # (Register EAX)) r1Val)
         # (Register EDX) <- 
-          (mod_unsigned (l # (Register EAX))
-                        ((l # (Register EDX) <- (Imm Vundef)) # (Register r1)))) symUndef)
+          (mod_unsigned (l # (Register EAX)) r1Val)) symUndef))
   | Pidiv r1 =>
-      Some (setAllFlags (l 
+     let r1Val := (l # (Register EDX) <- (Imm Vundef)) # (Register r1) in
+      Some (divBy r1Val (setAllFlags (l 
         # (Register EAX) <- 
-          (div_signed (l # (Register EAX)) 
-                      ((l # (Register EDX) <- (Imm Vundef)) # (Register r1)))) 
+          (div_signed (l # (Register EAX)) r1Val)) 
         # (Register EDX) <- 
-          (mod_signed (l # (Register EAX)) 
-                      ((l # (Register EDX) <- (Imm Vundef)) # (Register r1))) symUndef)
+          (mod_signed (l # (Register EAX)) r1Val) symUndef))
   | Pand_rr rd r1 =>
     let res := and (l # (Register rd)) (l # (Register r1)) in
       Some (l # (Register rd) <- res
