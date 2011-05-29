@@ -13,7 +13,94 @@ Require Import Stacklayout.
 Require Import Conventions.
 Require Import Peephole.
 Require Import Asm.
+Require Import PeepholeLocations.
 
+
+(* symbolic flags matching proposition. A flag is considered to match
+   if it has the same value between two states, or if in the left state
+   it is undefined. We consider it valid for a flag to become more
+   defined. *)
+Inductive symFlags_match : crbit -> SymState -> SymState -> Prop :=
+| symFlags_match_exact : 
+  forall (f : crbit)  (s1 s2 : SymState),
+    lookup (Register (CR f)) (symLocs s1) = lookup (Register (CR f)) (symLocs s2) ->
+    symFlags_match f s1 s2
+| symFlags_match_def : 
+  forall f s1 s2,
+    lookup (Register (CR f)) (symLocs s1) = symUndef ->
+    symFlags_match f s1 s2.
+
+(* lemma 1
+
+Let b be a block and c an instruction list starting with
+a branching instruction. If Σ |- (b; c), R, F, M →* c, R', F', M'
+and α(b) = (m, s), then Σ|- [[m]](R, F, M ) = (R', F', M') and
+Σ, (R, F, M ) |= s. *) 
+
+(* lemma 2
+
+Let b be a block and c an instruction list starting with a branching
+instruction. Let α(b) = (m, s). If Σ, (R,F,M) |= s, then there exists
+R', F', M' such that Σ|- (b; c), R, F, M →* c, R , F , M
+
+*)   
+
+
+(* lemma 3
+
+let b1, b2 be two blocks and c1,c2, two instruction sequences starting
+with branching instructions. If V(b1,b2) = true and Σ|-(b1;c1),R,F,M
+->* c1,R',F',M' then Σ |- (b2;c2), R, F, M ->* c2,R',F',M'
+
+*)
+
+
+(* so, here is a trivial match Prop for symbolic states. it needs to be fleshed out *)
+Inductive symStates_match : SymState -> SymState -> Prop :=
+| symStates_match_intro : forall s1 s2, symStates_match s1 s2.
+  
+  
+
+Lemma peephole_validate_length : forall (c d : code),
+  peephole_validate c d = true -> 
+  (length c <> 0)%nat /\ Compare_dec.leb (length d)  (length c) = true.
+Proof.
+  destruct c; intros.
+  inversion H.
+  split.
+  simpl. discriminate.
+  simpl in H.
+  match goal with
+    | [ _ : (if ?B then _ else _) = _ |- _ ] => case_eq B
+  end.
+  intros. auto. 
+  intro contra. rewrite contra in H. inversion H.
+Qed.  
+
+Lemma peephole_validate_correct : forall (c d : code),
+  peephole_validate c d = true -> forall (s : SymState),
+    symExec c s = symExec d s.
+Proof.
+  destruct c.
+  intros. inversion H.
+  destruct d.
+  intros. simpl in H. unfold sameSymbolicExecution in H.
+  destruct (single_symExec i initSymSt).
+  unfold peephole_validate in H.
+  simpl in H.
+Admitted.
+(*
+  rewrite H0 in H. simpl in H.
+  
+  match goal with
+    | [ _ : (if ?B then _ else _) = _ |- _ ] => destruct B
+  end.
+  inversion H.
+
+  assert (Compare_dec.leb (@length instruction nil) (length (i::c)) = true) by
+    (apply peephole_validate_length in H; inversion H; auto).
+  
+*)
 Section PRESERVATION.
 
 Variable prog: Asm.program.
@@ -77,8 +164,7 @@ Admitted.
   eexact  transf_initial_states.  
   eexact transf_final_states.  
   eexact peephole_correct.  
-Qed.
-*)
+Qed. *)
 
 End PRESERVATION.
 (* above I've sketched in the proof, based on Mach->Asm and stubbed in
