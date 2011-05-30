@@ -543,10 +543,16 @@ Fixpoint subset (a b : list Constraint) : bool :=
     | (x::xs) => existsb (fun z => constraint_eq z x) b && subset xs b
   end.
 
+Definition validFlag (f : Loc) (c : SymState) (d : SymState) : bool :=
+  SymExpr_dec (c # f) symUndef || SymExpr_dec (c # f) (d # f).
+
 (* A valid flag is one with the same definition or one that becomes
   "more defined" from a previous symUndef value. *)
-Definition validFlags (x : list Loc) (c : SymState) (d : SymState) : bool := 
-  all (fun l => SymExpr_dec (c # l) symUndef || SymExpr_dec (c # l) (d # l)) x.
+Definition validFlags (c : SymState) (d : SymState) : bool :=
+  validFlag (Register (CR ZF)) c d && 
+  validFlag (Register (CR PF)) c d && 
+  validFlag (Register (CR CF)) c d && 
+  validFlag (Register (CR SOF)) c d.
 
 Definition sameSymbolicExecution (c : option SymState) (d : option SymState) : bool :=
   match c, d with
@@ -554,7 +560,7 @@ Definition sameSymbolicExecution (c : option SymState) (d : option SymState) : b
       let nonFlagC := filter (fun x => negb (isCR x)) (elements (symLocs c')) in
         let nonFlagD := filter (fun x => negb (isCR x)) (elements (symLocs d')) in
           allLocs_dec (nonFlagC ++ nonFlagD) c' d'
-           && validFlags (map (compose Register CR) (ZF:: CF:: PF:: SOF::nil)) c' d'
+           && validFlags c' d'
            && subset (constraints d') (constraints c')
     | _, _ => false
   end.
