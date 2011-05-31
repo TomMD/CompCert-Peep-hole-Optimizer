@@ -11,8 +11,8 @@ Require Import Smallstep.
 Require Import Locations.
 Require Import Stacklayout.
 Require Import Conventions.
-Require Import Peephole.
 Require Import Asm.
+Require Import Peephole.
 Require Import PeepholeLocations.
 
 (* lemma 1
@@ -58,6 +58,26 @@ Inductive symFlags_match : crbit -> SymState -> SymState -> Prop :=
     lookup (Register (CR f)) (symLocs s1) = symUndef ->
     symFlags_match f s1 s2.
 
+Lemma symFlags_match_cases :
+  forall cr s1 s2,
+  symFlags_match cr s1 s2 -> 
+  lookup (Register (CR cr)) (symLocs s1) = lookup (Register (CR cr)) (symLocs s2) \/
+  lookup (Register (CR cr)) (symLocs s1) = symUndef.
+Proof.
+  intros. inversion H. left. assumption. right. assumption.
+Qed.
+
+Lemma symFlags_cases_match :
+  forall cr s1 s2,
+  lookup (Register (CR cr)) (symLocs s1) = lookup (Register (CR cr)) (symLocs s2) \/
+  lookup (Register (CR cr)) (symLocs s1) = symUndef ->
+  symFlags_match cr s1 s2.
+Proof. 
+  intros.  inversion H.
+  apply symFlags_match_exact ; assumption.
+  apply symFlags_match_def ; assumption.
+Qed.
+
 Inductive symAllFlags_match : SymState -> SymState -> Prop :=
 | symAllFlags_match_intro:
   forall s1 s2,
@@ -70,7 +90,8 @@ Inductive symAllFlags_match : SymState -> SymState -> Prop :=
 Inductive symAllRegs_match : SymState -> SymState -> Prop :=
 | symAllRegs_match_intro :
   forall s1 s2,
-
+    forall l, (false = isCR l ->
+              (s1 # l) = (s2 # l)) ->
     symAllRegs_match s1 s2.
 
 Inductive symMemory_match : SymState -> SymState -> Prop :=
@@ -86,19 +107,21 @@ Inductive symStates_match : SymState -> SymState -> Prop :=
     symMemory_match s1 s2 ->
     subset (constraints s1) (constraints s2) = true ->
     symStates_match s1 s2.
-  
+
+Require Import Coq.Lists.List.
 
 (* Some lemmas related to the above propositions *)
-Lemma validFlags_symAllFlags_match : forall (l : list Loc) (s1 s2 : SymState),
-  forall (f : Loc), isCR f = true ->
-    validFlags l s1 s2 = true ->
-    symAllRegs_match s1 s2.
+Lemma validFlags_symAllFlags_match : forall (s1 s2 : SymState),
+    validFlags s1 s2 = true -> 
+    symAllFlags_match s1 s2.
 Proof.
-  intros.
-  constructor.
-Qed.
+  intros s1 s2 Hcr. apply symAllFlags_match_intro.
+  (* Whatever works for this case will work for the others, use ';' once the proof is found *)
 
-
+  apply symFlags_cases_match.
+  unfold validFlags in Hcr.  unfold validFlag in Hcr. 
+  apply andb_prop in Hcr. 
+Admitted.
 
 Lemma peephole_validate_length : forall (c d : code),
   peephole_validate c d = true -> 
