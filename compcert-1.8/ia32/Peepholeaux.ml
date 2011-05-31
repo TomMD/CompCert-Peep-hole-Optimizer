@@ -37,9 +37,29 @@ let loadLoad (is : instruction list) : instruction list =
       Pnop :: Pmov_rr (r2,rs) :: xs
   | _ -> is
 
+(* currently, this code optimizes a specific pattern we see, but could
+   be made more general. The pattern is:
+
+        ...
+	movl	%edx, 4(%esp)
+	movl	%ebx, 0(%edx)
+	movl	%edx, 4(%esp)
+        ...
+
+   note that I've manually fixed the above to look like the usual
+   intel syntax. the actual output from the optimizer is in at&t
+   syntax... just in case it wasn't confusing enough... *)
+
+let loadSkipLoad (is : instruction list) : instruction list =
+  match is with
+  | Pmov_rm (r1, m1) :: Pmov_rm (r2, m2) :: Pmov_rm (r3, m3) :: xs
+    when r1 = r3 && m1 = m3 ->
+      Pnop :: Pmov_rm (r2, m2) :: Pmov_rm (r3, m3) :: xs
+   | _ -> is
+
 (* All optimizations that use a window of 2 adjacent instructions can go here *)
 let window2Opts : (instruction list -> instruction list) list = 
-  [loadStore, loadLoad]
+  [loadStore, loadLoad, loadSkipLoad]
 
 (* This is a list of all optimizations, they will be applied once per pass *)
 let optimizations : (instruction list -> instruction list) list =
