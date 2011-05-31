@@ -132,6 +132,12 @@ Proof.
   decide equality; try (apply val_eq_dec); try (apply Loc_eq) ; try (apply SymOp_eq).
 Defined.
 
+Definition beq_SymExpr (s1 s2 : SymExpr) : bool :=
+  match SymExpr_dec s1 s2 with
+  | left _ => true
+  | right _ => false
+  end.
+
 Definition constraint_eq : forall (c1 c2 : Constraint), {c1 = c2} + {c1 <> c2}.
 Proof.
  decide equality. apply addrmode_eq. apply addrmode_eq. apply SymExpr_dec.
@@ -544,7 +550,7 @@ Fixpoint subset (a b : list Constraint) : bool :=
   end.
 
 Definition validFlag (f : Loc) (c : SymState) (d : SymState) : bool :=
-  SymExpr_dec (c # f) symUndef || SymExpr_dec (c # f) (d # f).
+  beq_SymExpr (c # f) (Initial f) || beq_SymExpr (c # f) (d # f).
 
 (* A valid flag is one with the same definition or one that becomes
   "more defined" from a previous symUndef value. *)
