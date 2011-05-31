@@ -35,6 +35,8 @@ let loadLoad (is : instruction list) : instruction list =
   match is with
   | Pmovd_rf (r1, _) :: Pmov_rr (r2, rs) :: xs when r1 = r2 ->
       Pnop :: Pmov_rr (r2,rs) :: xs
+  | Pmovl_rm (r1, _) :: Pmov_rr (r2, rs) :: xs when r1 =r2 ->
+      Pnop :: Pmov_rr (r2, rs) :: xs
   | _ -> is
 
 (* currently, this code optimizes a specific pattern we see, but could
@@ -48,22 +50,30 @@ let loadLoad (is : instruction list) : instruction list =
 
    note that I've manually fixed the above to look like the usual
    intel syntax. the actual output from the optimizer is in at&t
-   syntax... just in case it wasn't confusing enough... *)
+   syntax... just in case it wasn't confusing enough... 
+
+   also note that this particular example is exactly the case where we
+   need to make sure the second load to edx is remove, not the first
+   one...  *)
 
 let loadSkipLoad (is : instruction list) : instruction list =
   match is with
   | Pmov_rm (r1, m1) :: Pmov_rm (r2, m2) :: Pmov_rm (r3, m3) :: xs
-    when r1 = r3 && m1 = m3 ->
-      Pnop :: Pmov_rm (r2, m2) :: Pmov_rm (r3, m3) :: xs
+    when r1 = r3 && m1 = m3 &&
+      Pmov_rm (r1, m1) :: Pmov_rm (r2, m2) :: Pnop :: xs
    | _ -> is
 
 (* All optimizations that use a window of 2 adjacent instructions can go here *)
 let window2Opts : (instruction list -> instruction list) list = 
-  [loadStore, loadLoad, loadSkipLoad]
+  [loadStore; loadLoad]
+
+let window3Opts : (instruction list -> instruction list) list =
+   [loadSkipLoad]
 
 (* This is a list of all optimizations, they will be applied once per pass *)
 let optimizations : (instruction list -> instruction list) list =
-  concat [map (windowNPeephole 2) window2Opts
+  concat [map (windowNPeephole 2) window2Opts;
+   map (windowNPeephole 3) window3Opts
          ]
 
 (* A single pass applies all our optimizations (in no particular order) once *)
