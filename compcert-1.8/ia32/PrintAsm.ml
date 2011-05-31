@@ -343,7 +343,7 @@ let jumptables : (int * label list) list ref = ref []
 
 let print_instruction oc labels = function
   | Pnop ->
-      fprintf oc "     nop"
+      fprintf oc "	nop\n"
   (* Moves *)
   | Pmov_rr(rd, r1) ->
       fprintf oc "	movl	%a, %a\n" ireg r1 ireg rd

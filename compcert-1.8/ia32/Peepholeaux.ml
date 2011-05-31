@@ -25,17 +25,17 @@ let rec windowNPeephole n optFunc is =
 
 let loadStore (is : instruction list) : instruction list =
   match is with
-  | Pmov_rm (r1, m1) :: Pmov_mr (m2, r2) :: xs when r1 = r2 && m1 = m2 ->
+  | Pmov_rm (r1, m1) :: Pmov_mr (m2, r2) :: xs when beq_ireg r1 r2 && beq_addrmode m1 m2 ->
         Pmov_rm (r1, m1) :: Pnop :: xs
-  | Pmov_mr (m1, r1) :: Pmov_rm (r2, m2) :: xs when r1 = r2 && m1 = m2 ->
+  | Pmov_mr (m1, r1) :: Pmov_rm (r2, m2) :: xs when beq_ireg r1 r2 && beq_addrmode m1 m2 ->
 	Pmov_mr (m1, r1) :: Pnop :: xs
   | _ -> is
 
 let loadLoad (is : instruction list) : instruction list =
   match is with
-  | Pmovd_rf (r1, _) :: Pmov_rr (r2, rs) :: xs when r1 = r2 ->
+  | Pmovd_rf (r1, _) :: Pmov_rr (r2, rs) :: xs when beq_ireg r1 r2 ->
       Pnop :: Pmov_rr (r2,rs) :: xs
-  | Pmovl_rm (r1, _) :: Pmov_rr (r2, rs) :: xs when r1 =r2 ->
+  | Pmov_rm (r1, _) :: Pmov_rr (r2, rs) :: xs when beq_ireg r1 r2 ->
       Pnop :: Pmov_rr (r2, rs) :: xs
   | _ -> is
 
@@ -59,7 +59,7 @@ let loadLoad (is : instruction list) : instruction list =
 let loadSkipLoad (is : instruction list) : instruction list =
   match is with
   | Pmov_rm (r1, m1) :: Pmov_rm (r2, m2) :: Pmov_rm (r3, m3) :: xs
-    when r1 = r3 && m1 = m3 &&
+    when beq_ireg r1 r3 && beq_addrmode m1 m3 ->
       Pmov_rm (r1, m1) :: Pmov_rm (r2, m2) :: Pnop :: xs
    | _ -> is
 

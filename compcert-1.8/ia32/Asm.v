@@ -45,8 +45,20 @@ Inductive freg: Type :=
 Lemma ireg_eq: forall (x y: ireg), {x=y} + {x<>y}.
 Proof. decide equality. Defined.
 
+Definition beq_ireg (x y : ireg) : bool :=
+  match ireg_eq x y with
+  | left _ => true
+  | right _ => false
+  end.
+
 Lemma freg_eq: forall (x y: freg), {x=y} + {x<>y}.
 Proof. decide equality. Defined.
+
+Definition beq_freg (x y : freg) : bool :=
+  match freg_eq x y with
+  | left _ => true
+  | right _ => false
+  end.
 
 (** Bits of the flags register.  [SOF] is a pseudo-bit representing
   the "xor" of the [OF] and [SF] bits. *)
@@ -192,6 +204,35 @@ Inductive instruction: Type :=
 Definition code := list instruction.
 Definition fundef := AST.fundef code.
 Definition program := AST.program fundef unit.
+
+Lemma addrmode_eq: forall (x y: addrmode), {x=y} + {x<>y}.
+Proof.
+  decide equality ; try (decide equality;  apply Int.eq_dec ;
+  decide equality ; apply Int.eq_dec ; decide equality).
+  decide equality. apply Int.eq_dec. decide equality. apply Int.eq_dec. 
+  decide equality. decide equality. decide equality ; try apply Int.eq_dec. 
+  apply ireg_eq. decide equality. apply ireg_eq.
+Defined.
+  
+Lemma instr_eq: forall (x y: instruction), {x=y} + {x<>y}.
+Proof.
+  decide equality ; try apply ireg_eq ; try apply freg_eq ; try apply addrmode_eq ;
+                    try apply Int.eq_dec ; try decide equality ; try apply Float.eq_dec ;
+  try (decide equality ; (try apply Int.eq_dec ; try decide equality ;
+                          try apply Int.eq_dec ; try decide equality)). 
+Defined.
+
+Definition beq_instr (x y : instruction) : bool :=
+  match (instr_eq x y) with
+  | left _ => true
+  | right _ => false
+  end.
+
+Definition beq_addrmode (x y : addrmode) : bool :=
+  match (addrmode_eq x y) with
+  | left _ => true
+  | right _ => false
+  end.
 
 (** * Operational semantics *)
 
