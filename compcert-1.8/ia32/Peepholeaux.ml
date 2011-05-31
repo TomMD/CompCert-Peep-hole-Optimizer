@@ -39,7 +39,7 @@ let loadLoad (is : instruction list) : instruction list =
 
 (* All optimizations that use a window of 2 adjacent instructions can go here *)
 let window2Opts : (instruction list -> instruction list) list = 
-  [loadStore]
+  [loadStore, loadLoad]
 
 (* This is a list of all optimizations, they will be applied once per pass *)
 let optimizations : (instruction list -> instruction list) list =
