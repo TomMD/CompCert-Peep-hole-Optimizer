@@ -15,30 +15,33 @@ Record LocStore : Type := mkLocStore
 
 Definition initLocStore (d : key -> val) := mkLocStore nil d.
 
-Fixpoint update' (k : key) (v : val) (l : a_list) : a_list := 
-  match l with
-    | nil => (k, v) :: nil
-    | (k', v') :: ls => if key_eq k k'
-      then (k, v) :: ls
-      else (k', v') :: update' k v ls
-  end.
+(* Fixpoint update' (k : key) (v : val) (l : a_list) : a_list :=  *)
+(*   match l with *)
+(*     | nil => (k, v) :: nil *)
+(*     | (k', v') :: ls => if key_eq k k' *)
+(*       then (k, v) :: ls *)
+(*       else (k', v') :: update' k v ls *)
+(*   end. *)
 
 Definition update (k : key) (v : val) (s : LocStore) : LocStore :=
-  mkLocStore (update' k v (store s)) (default s).
+  mkLocStore ((k, v) :: (store s)) (default s).
 
-Fixpoint lookup' (k : key) (l : a_list) : option val :=
-  match l with
-    | nil => None
-    | (k', v') :: ls => if key_eq k k'
-      then Some v'
-      else lookup' k ls
+(* Fixpoint lookup' (k : key) (l : a_list) : option val := *)
+(*   match l with *)
+(*     | nil => None *)
+(*     | (k', v') :: ls => if key_eq k k' *)
+(*       then Some v' *)
+(*       else lookup' k ls *)
+(*   end. *)
+
+Fixpoint lookup' (k : key) (s : a_list) (d : key -> val): val :=
+  match s with
+    | nil => d k
+    | (k',v) :: ss => if  key_eq k' k then v else lookup' k ss d
   end.
 
 Definition lookup (k : key) (s : LocStore) : val :=
-  match lookup' k (store s) with
-    | None => (default s) k
-    | Some v => v
-  end.
+  lookup' k (store s) (default s).
 
 Fixpoint elements' (l : a_list) : list key :=
   match l with
