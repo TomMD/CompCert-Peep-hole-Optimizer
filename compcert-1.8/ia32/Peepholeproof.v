@@ -139,9 +139,11 @@ Proof.
   intro contra. rewrite contra in H. inversion H.
 Qed.  
 
-Lemma peephole_validate_correct : forall (c d : code),
-  peephole_validate c d = true -> forall (s : SymState),
-    symExec c s = symExec d s.
+Lemma peephole_validate_correct : forall (c d : code) (s1 s2 : SymState),
+  peephole_validate c d = true -> 
+    symExec c initSymSt = Some s1 -> 
+    symExec d initSymSt = Some s2 ->
+    symStates_match s1 s2.
 Proof.
   destruct c.
   intros. inversion H.

@@ -31,6 +31,12 @@ let loadStore (is : instruction list) : instruction list =
 	Pmov_mr (m1, r1) :: Pnop :: xs
   | _ -> is
 
+let loadLoad (is : instruction list) : instruction list =
+  match is with
+  | Pmovd_rf (r1, _) :: Pmov_rr (r2, rs) :: xs when r1 = r2 ->
+      Pnop :: Pmov_rr (r2,rs) :: xs
+  | _ -> is
+
 (* All optimizations that use a window of 2 adjacent instructions can go here *)
 let window2Opts : (instruction list -> instruction list) list = 
   [loadStore]

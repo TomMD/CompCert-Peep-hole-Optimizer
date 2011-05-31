@@ -1,0 +1,78 @@
+I've had opportunity to think about aliasing over the past weekend and
+have the following rough idea about how one might proceed.
+
+First, the problem. Simply put, when compiling, or specifically when
+looking at a small window of code as in a peephole optimizer, we can't
+tell in general whether or not two addresses actually refer to the
+same location. We can tell, sometimes, when they specifically do *not*
+refer to the same location, e.g. 0(%eax) and 4(%eax) do not refer to
+the same location, modulo some intervening change in %eax. 
+
+We describe an address which may be an alias to another address as
+interfering with that other address. So for example, if we have no
+reason to believe that 4(%eax) and 12(%esp) do not interfere, then we
+can say 4(%eax) interferes with 12(%esp) and vice versa.
+
+When we examine the symbolic evaluation of a set of instructions over
+a set of addresses which interfere, then we must assume that they *do*
+interfere, and we should mark them appropriately. If the symbolic
+expressions for the set of addresses match, including interference
+annotations, then they are equivalent. If they match, excluding the
+interference annotations, then we can't be sure they are equivalent,
+unless we can otherwise prove non-interference. 
+
+As I said above, there are certain pairs of addresses for which we can
+prove non-interference. We can use these non-interfering pairs to
+partition addresses into interference sets. An interference set is a
+set of addresses which interfere. Any reference to an address in an
+interference set should be considered to affect every address in the
+set. But we know that reference does not impact any address which is
+not in the interference set. 
+
+Here is an example. Consider the code:
+
+movl 0(%eax) %ebx
+movl 4(%esp) %ecx
+movl 8(%esp) 1
+add %ebx 4
+movl 4(%eax) %ebx
+
+There are 3 addresses of interest here, 0(%eax), 4)(%eax), 4(%esp) and
+8(%esp). There are a couple of aliasing scenarios here. But we can
+prove the following two things:
+
+0(%eax) and 4(%eax) are non-interfering
+4(%esp) and 8(%esp) are non-interfering.
+
+with this knowledge, we can carve up the four addresses into two 
+interference sets in two different ways:
+
+{0(%eax), 4(%esp)} and {4(%eax), 8(%esp)}
+
+or
+
+{0(%eax), 8(%esp)} and {4(%eax), 4(%esp)}
+
+Now, when we symbolically evaluate the above instructions, we have to
+perform the evaluation three times, once for each interference
+scenario and once for the possibility that there is no aliasing at all
+(this is really just another interference scenario where we assume
+that each interference set is a singleton). During each evaluation,
+the writes to locations in an interference set force writes, or
+annotations, to the other locations in that interference set.
+
+If after all these evaluations we can show symbolic equivalence
+between them then we can say that this piece of code is not affected
+by aliasing. More importantly, if we compare a set of symbolic
+evaluations of this code with another set of symbolic evaluations on some
+optimized version of this code, and those sets are pair-wise
+equivalent, then we know that even in the presence of aliasing, the
+optimization is correct. 
+
+The determination of interference sets can be viewed as a graph
+partitioning problem. The set of addresses is a fully connected graph
+with the edges between non-interfering pairs removed. Then for each
+partition of the graph where there is no path between non-interfering
+pairs, you get an interference scenario.
+
+
