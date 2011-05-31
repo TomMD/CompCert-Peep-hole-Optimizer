@@ -70,7 +70,7 @@ Inductive symAllFlags_match : SymState -> SymState -> Prop :=
 Inductive symAllRegs_match : SymState -> SymState -> Prop :=
 | symAllRegs_match_intro :
   forall s1 s2,
-
+    
     symAllRegs_match s1 s2.
 
 Inductive symMemory_match : SymState -> SymState -> Prop :=
@@ -88,16 +88,46 @@ Inductive symStates_match : SymState -> SymState -> Prop :=
     symStates_match s1 s2.
   
 
-(* Some lemmas related to the above propositions *)
-Lemma validFlags_symAllFlags_match : forall (l : list Loc) (s1 s2 : SymState),
-  forall (f : Loc), isCR f = true ->
-    validFlags l s1 s2 = true ->
-    symAllRegs_match s1 s2.
+(* Some lemmas related to or supporting the above propositions *)
+Lemma lookup'_Some__element : forall (l : Loc) (ls : a_list Loc SymExpr) (s: SymExpr),
+  lookup' Loc_eq l ls = Some s  -> In l (elements' ls).
 Proof.
+  induction ls. intros. inversion H.
   intros.
-  constructor.
-Qed.
+  unfold In. simpl.
+  simpl in H.
 
+Lemma not_element__lookup'_None : forall (l : Loc) (ls : locs),
+  ~ (In l (elements ls)) -> lookup' Loc_eq l (store ls) = None.
+Proof.
+  intros. 
+  case_eq (lookup' Loc_eq l (store ls)).
+  intros.
+  
+  unfold elements, elements' in *. unfold In in H. unfold lookup' in H0.
+  
+  
+
+Lemma not_element__default_loc : forall (l : Loc) (s : SymState),
+  ~ (In l (elements (symLocs s))) ->
+  lookup l (symLocs s) = (default (symLocs s)) l.
+Proof. 
+  intros.
+  unfold lookup. destruct (store (symLocs s)). simpl.  reflexivity.
+  case_eq (lookup' Loc_eq l (p :: a)).
+  intros.
+
+ 
+  unfold not, elements, elements' in H.
+  
+
+Lemma validFlags_symAllFlags_match : forall (l : list Loc) (s1 s2 : SymState),
+  filter (fun x => isCR x) (elements (symLocs s2)) = l ->
+  validFlags l s1 s2 = true ->
+  symAllFlags_match s1 s2.
+Proof.
+  induction l; intros.
+  constructor. constructor.
 
 
 Lemma peephole_validate_length : forall (c d : code),
@@ -116,9 +146,11 @@ Proof.
   intro contra. rewrite contra in H. inversion H.
 Qed.  
 
-Lemma peephole_validate_correct : forall (c d : code),
-  peephole_validate c d = true -> forall (s : SymState),
-    symExec c s = symExec d s.
+Lemma peephole_validate_correct : forall (c d : code) (s1 s2 : SymState),
+  peephole_validate c d = true -> 
+    symExec c initSymSt = Some s1 -> 
+    symExec d initSymSt = Some s2 ->
+    symStates_match s1 s2.
 Proof.
   destruct c.
   intros. inversion H.
