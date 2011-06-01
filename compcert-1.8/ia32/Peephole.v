@@ -143,50 +143,62 @@ Proof.
  decide equality. apply addrmode_eq. apply addrmode_eq. apply SymExpr_dec.
 Defined.
 
-(* the type of our location store *)
-Definition locs := @LocStore Loc SymExpr Loc_eq.
+(* the type of our memory store *)
+Definition mems := @LocStore addrmode SymExpr addrmode_eq.
+
+(* the type of our register store *)
+Definition regs := @LocStore preg SymExpr preg_eq.
 
 (* A "SymState" encodes the concept of the state of a symbolic execution.
    It includes a mapping of locations to symbolic expressions and set
    of contraints (operations that could cause exceptions or other bad behavior).
-  *)
-Inductive SymState :=
-  | SymSt : list Constraint -> locs -> SymState.
+
+  While "mems" and "regs" are the same type (sort of), the difference
+  is how they're used.  mems are keyed by locations (addrmode's) which
+  might alias while regs are keyed by registers which we know don't
+  alias.  *)
+Inductive SymState := SymSt : list Constraint -> mems -> regs -> SymState.
 
 (* Helper functions & notation to modify the 'locs' of a SymState *)
-Definition symLocs (s : SymState) : locs :=
+Definition symMem (s : SymState) : mems :=
   match s with
-  | SymSt _ l => l
+  | SymSt _ l _ => l
   end.
 
-Definition symSetLoc (l : Loc) (x : SymExpr) (s : SymState) : SymState :=
+Definition symReg (s : SymState) : regs :=
   match s with
-  | SymSt c m => SymSt c (update l  x m)
+  | SymSt _ _ l => l
+  end.
+
+Definition symSetMem (l : addrmode) (x : SymExpr) (s : SymState) : SymState :=
+  match s with
+  | SymSt c m r => SymSt c (update l  x m) r
+  end.
+
+Definition symSetReg (l : preg) (x : SymExpr) (s : SymState) : SymState :=
+  match s with
+  | SymSt c m r => SymSt c m (update l x r)
   end.
 
 Definition constraints (s : SymState) : list Constraint :=
   match s with
-  | SymSt c _ => c
+  | SymSt c _ _ => c
   end.
-
-Notation "a # b" := (lookup b (symLocs a)) (at level 1, only parsing).
-Notation "a # b <- c" := (symSetLoc b c a) (at level 1, b at next level).
-
 
 (* Helper functions to modify the constraints of a SymState *)
 Definition readMem  (l : addrmode) (s : SymState) : SymState :=
   match s with
-    | SymSt c mapping => SymSt (ReadMem l::c) mapping
+    | SymSt c mapping r => SymSt (ReadMem l::c) mapping r
   end.
 
 Definition writeMem (l : addrmode) (s : SymState) : SymState :=
   match s with
-    | SymSt c mapping => SymSt (WriteMem l ::c) mapping
+    | SymSt c mapping r => SymSt (WriteMem l ::c) mapping r
   end.
 
 Definition divBy (e : SymExpr) (s : SymState) : SymState :=
   match s with
-    | SymSt c mapping => SymSt (DivBy e :: c) mapping
+    | SymSt c mapping r => SymSt (DivBy e :: c) mapping r
   end.
 
 (** the initial state of our symbolic store returns the initial value
@@ -194,8 +206,21 @@ Definition divBy (e : SymExpr) (s : SymState) : SymState :=
     undefined and instead has the value "Initial foo" for the location
     "foo". Not sure why I have to restate the decision procedure, but
     there it is *)
-Definition initLocs : locs := initLocStore Loc_eq Initial.
-Definition initSymSt : SymState := SymSt nil initLocs.
+Definition initMem : mems := initLocStore addrmode_eq (compose Initial Memory).
+Definition initReg : regs := initLocStore preg_eq (compose Initial Register).
+Definition initSymSt : SymState := SymSt nil initMem initReg.
+
+Notation "a # b" :=
+  match b with
+  | Register p => (lookup p (symReg a))
+  | Memory m   => (lookup m (symMem a))
+  end (at level 1, only parsing).
+
+Notation "a # b <- c" :=
+  match b with
+  | Register p => (symSetReg p c a)
+  | Memory m   => (symSetMem m c a )
+  end (at level 1, b at next level).
 
 Definition eval_addrmode (a: addrmode) (l : SymState) : option SymExpr :=
   match a with Addrmode base ofs const =>
@@ -220,9 +245,9 @@ Definition eval_addrmode (a: addrmode) (l : SymState) : option SymExpr :=
 Definition symUndef := Imm Vundef.
 
 Definition setAllFlags (l : SymState) (e : SymExpr) : SymState :=
-  l # (Register (CR ZF)) <- e
-    # (Register (CR CF)) <- e
-    # (Register (CR PF)) <- e
+  l # (Register (CR ZF))  <- e
+    # (Register (CR CF))  <- e
+    # (Register (CR PF))  <- e
     # (Register (CR SOF)) <- e.
 
 (* small step symbolic execution *)
@@ -530,9 +555,9 @@ Fixpoint allLocs_dec (l : list Loc) (a b : SymState) : bool :=
         else false
   end.
 
-Definition isCR (c : Loc) : bool :=
+Definition isCR (c : preg) : bool :=
   match c with
-    | (Register (CR _)) => true
+    | (CR _) => true
     | _ => false
   end.
 
@@ -560,14 +585,18 @@ Definition validFlags (c : SymState) (d : SymState) : bool :=
   validFlag (Register (CR CF)) c d && 
   validFlag (Register (CR SOF)) c d.
 
+Definition validMem (c : SymState) (d : SymState) : bool := false.
+
+Definition validRegs (l : list preg) (c d : SymState) : bool := false.
+
 Definition sameSymbolicExecution (c : option SymState) (d : option SymState) : bool :=
   match c, d with
     | Some c', Some d' =>
-      let nonFlagC := filter (fun x => negb (isCR x)) (elements (symLocs c')) in
-        let nonFlagD := filter (fun x => negb (isCR x)) (elements (symLocs d')) in
-          allLocs_dec (nonFlagC ++ nonFlagD) c' d'
-           && validFlags c' d'
-           && subset (constraints d') (constraints c')
+      let regC := filter (fun x => negb (isCR x)) (elements (symReg c')) in
+        let regD := filter (fun x => negb (isCR x)) (elements (symReg d')) in
+          validFlags c' d' &&
+          validRegs  (regC ++ regD) c' d' &&
+          validMem c' d'
     | _, _ => false
   end.
 
