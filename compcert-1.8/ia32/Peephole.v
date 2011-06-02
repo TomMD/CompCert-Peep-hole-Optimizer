@@ -639,7 +639,37 @@ Fixpoint subset (a b : list Constraint) : bool :=
     | (x::xs) => existsb (fun z => beq_constraint z x) b && subset xs b (* fixme direct eq isn't quite right *)
   end.
 
-Fixpoint normalize (s : SymExpr) : SymExpr := s.
+Fixpoint normalizeSymOp (o : SymOp) (e1 e2 : SymExpr) : SymExpr := binOp o e1 e2.
+
+Definition nonaliasedLookup (a : addrmode) (m : list (addrmode * SymExpr)) : SymExpr :=
+  Load a m.
+
+Fixpoint normalizeMem (m : list (addrmode * SymExpr)) : list (addrmode * SymExpr) := m.
+
+Fixpoint normalize (s : SymExpr) : SymExpr :=
+  match s with
+    | binOp o e1 e2 =>
+      let d1 := normalize e1 in let d2 := normalize e2 in
+        normalizeSymOp o d1 d2
+    | neg e =>
+        match e with
+          | neg x => normalize x
+          | _     => normalize e
+        end
+    | abs_f e =>
+        match e with
+          | abs_f x => abs_f (normalize x)
+          | _       => abs_f (normalize e)
+        end
+    | neg_f e =>
+        match e with
+          | neg_f x => normalize x
+          | _       => normalize e
+        end
+    | Imm v => Imm v
+    | Initial l => Initial l
+    | Load a m => nonaliasedLookup a (normalizeMem m)
+  end.
 
 Definition validMem (c : SymState) (d : SymState) : bool := false.
 
