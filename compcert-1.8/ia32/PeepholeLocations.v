@@ -52,5 +52,33 @@ Fixpoint elements' (l : a_list) : list key :=
 Definition elements (s : LocStore) : list key :=
   elements' (store s).
 
-End LocStore.
+Definition key_eq_bool (k k' : key) : bool.
+refine(fun k k' =>  if (key_eq k k') then true else false).
+Defined.
 
+Lemma key_eq__eq : forall k k',
+  key_eq_bool k k' = true -> k = k'.
+intros. 
+unfold key_eq_bool in H.
+destruct (key_eq k k'). auto. inversion H.
+Qed.
+
+Lemma key_eq_bool_refl : forall k,
+  key_eq_bool k k = true.
+intro. simpl. unfold key_eq_bool. simpl.
+destruct (key_eq k k). reflexivity.
+elimtype False.
+apply n. reflexivity.
+Qed.
+
+(* lemmas about things stored in this structure *)
+Lemma update_same : forall k v s,
+  lookup k (update k v s) = v.
+intros. unfold update. unfold lookup. simpl.
+destruct (key_eq k k). reflexivity.
+elimtype False.
+apply n. reflexivity.
+Qed.
+
+
+End LocStore.
