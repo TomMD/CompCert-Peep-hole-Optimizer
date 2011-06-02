@@ -15,24 +15,8 @@ Record LocStore : Type := mkLocStore
 
 Definition initLocStore (d : key -> val) := mkLocStore nil d.
 
-(* Fixpoint update' (k : key) (v : val) (l : a_list) : a_list :=  *)
-(*   match l with *)
-(*     | nil => (k, v) :: nil *)
-(*     | (k', v') :: ls => if key_eq k k' *)
-(*       then (k, v) :: ls *)
-(*       else (k', v') :: update' k v ls *)
-(*   end. *)
-
 Definition update (k : key) (v : val) (s : LocStore) : LocStore :=
   mkLocStore ((k, v) :: (store s)) (default s).
-
-(* Fixpoint lookup' (k : key) (l : a_list) : option val := *)
-(*   match l with *)
-(*     | nil => None *)
-(*     | (k', v') :: ls => if key_eq k k' *)
-(*       then Some v' *)
-(*       else lookup' k ls *)
-(*   end. *)
 
 Fixpoint lookup' (k : key) (s : a_list) (d : key -> val): val :=
   match s with
