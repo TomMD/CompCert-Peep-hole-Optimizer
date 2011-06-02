@@ -68,7 +68,10 @@ Inductive SymExpr : Type :=
   | abs_f  : SymExpr -> SymExpr
   | neg_f  : SymExpr -> SymExpr
   | Imm    : val -> SymExpr
-  | Initial : Loc -> SymExpr.
+  | Initial : Loc -> SymExpr
+
+  (* Memory *)
+  | Load : list (addrmode * SymExpr) -> addrmode -> SymExpr.
 
 Definition cmp := binOp SymCmp.
 Definition test := binOp SymTest.
@@ -129,7 +132,14 @@ Defined.
 (* decide equality for symbolic expressions. note this is *syntactic* equality *)
 Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}.
 Proof.
-  decide equality; try (apply val_eq_dec); try (apply Loc_eq) ; try (apply SymOp_eq).
+  refine (fix f (a b : SymExpr) : {a = b} + {a <> b} :=
+    match a, b as _ return _ with
+      | Imm _, _ => _
+      | _, _ => _
+  end);
+  decide equality ; try apply SymOp_eq ; try apply val_eq_dec ; try apply Loc_eq ;
+  try apply addrmode_eq ; try (apply list_eq_dec ; try apply addrmode_eq);
+  decide equality ; (try apply addrmode_eq ; try assumption). 
 Defined.
 
 Definition beq_SymExpr (s1 s2 : SymExpr) : bool :=
@@ -213,7 +223,7 @@ Definition initSymSt : SymState := SymSt nil initMem initReg.
 Notation "a # b" :=
   match b with
   | Register p => (lookup p (symReg a))
-  | Memory m   => (lookup m (symMem a))
+  | Memory m   => Load m (store (sysMem a))  (* (lookup m (symMem a)) *)
   end (at level 1, only parsing).
 
 Notation "a # b <- c" :=
@@ -574,6 +584,14 @@ Fixpoint subset (a b : list Constraint) : bool :=
     | (x::xs) => existsb (fun z => constraint_eq z x) b && subset xs b
   end.
 
+(* Begin Stubs! *)
+Fixpoint normalize (s : SymExpr) : SymExpr := s.
+
+Definition validMem (c : SymState) (d : SymState) : bool := false.
+
+Definition validRegs (l : list preg) (c d : SymState) : bool := false.
+(* End stubs (I hope) *)
+
 Definition validFlag (f : Loc) (c : SymState) (d : SymState) : bool :=
   beq_SymExpr (c # f) (Initial f) || beq_SymExpr (c # f) (d # f).
 
@@ -584,10 +602,6 @@ Definition validFlags (c : SymState) (d : SymState) : bool :=
   validFlag (Register (CR PF)) c d && 
   validFlag (Register (CR CF)) c d && 
   validFlag (Register (CR SOF)) c d.
-
-Definition validMem (c : SymState) (d : SymState) : bool := false.
-
-Definition validRegs (l : list preg) (c d : SymState) : bool := false.
 
 Definition sameSymbolicExecution (c : option SymState) (d : option SymState) : bool :=
   match c, d with
