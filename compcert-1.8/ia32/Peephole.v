@@ -677,7 +677,7 @@ Definition validRegs (l : list preg) (c d : SymState) : bool := false.
 (* End stubs (I hope) *)
 
 Definition validFlag (f : Loc) (c : SymState) (d : SymState) : bool :=
-  beq_SymExpr (c # f) (Initial f) || beq_SymExpr (c # f) (d # f).
+  beq_SymExpr (c # f) symUndef || beq_SymExpr (c # f) (d # f).
 
 (* A valid flag is one with the same definition or one that becomes
   "more defined" from a previous symUndef value. *)
