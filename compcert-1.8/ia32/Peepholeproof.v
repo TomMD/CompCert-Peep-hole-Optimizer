@@ -181,7 +181,7 @@ Lemma symFlags_match_cases :
   lookup (Register (CR cr)) (symLocs s1) = lookup (Register (CR cr)) (symLocs s2) \/
   lookup (Register (CR cr)) (symLocs s1) = symUndef.
 Proof.
-  intros. inversion H. left. assumption. right. assumption.
+  intros; inversion H; [left; assumption | right; assumption].
 Qed.
 
 Lemma symFlags_cases_match :
@@ -190,9 +190,9 @@ Lemma symFlags_cases_match :
   lookup (Register (CR cr)) (symLocs s1) = symUndef ->
   symFlags_match cr s1 s2.
 Proof. 
-  intros.  inversion H.
-  apply symFlags_match_exact ; assumption.
-  apply symFlags_match_def ; assumption.
+  intros; inversion H; [
+  apply symFlags_match_exact ; assumption |
+  apply symFlags_match_def ; assumption].
 Qed.
 
 Inductive symAllFlags_match : SymState -> SymState -> Prop :=
@@ -227,7 +227,51 @@ Inductive symStates_match : SymState -> SymState -> Prop :=
 
 Require Import Coq.Lists.List.
 
+<<<<<<< HEAD
 (* Some lemmas related to the above propositions *)
+=======
+
+Lemma andb_true_left : forall a b,
+  a && b = true -> a = true.
+Proof.
+  intros; symmetry in H; apply andb_true_eq in H;
+  inversion H; auto.
+Qed.
+
+(* Some lemmas related to the above propositions *)
+
+(* REPLACE ME WITH THE REAL LEMMA!!! *)
+Lemma beq_SymExpr_true : forall a b,
+  beq_SymExpr a b = true -> a = b.
+Proof.
+Admitted.
+
+Lemma validFlags__validFlag : forall f s1 s2,
+  validFlags s1 s2 = true -> validFlag (Register (CR f)) s1 s2 = true.
+Proof.
+  Ltac intFlags := intros; match goal with
+                             | [ H: validFlags _ _ = true |- _] => unfold validFlags in H
+                           end.
+  induction f; intFlags; [
+    rewrite <- andb_assoc in H; rewrite <- andb_assoc in H |
+      rewrite <- andb_assoc in H; rewrite andb_comm in H; rewrite <- andb_assoc in H |
+        rewrite <- andb_assoc in H; rewrite <- andb_assoc in H; rewrite andb_comm in H;
+          rewrite <- andb_assoc in H |
+            rewrite andb_comm in H ];
+  apply andb_true_left in H; assumption.
+Qed.
+  
+  
+Lemma validFlag__eq_or_undef : forall f s1 s2,
+  validFlag (Register (CR f)) s1 s2 = true -> 
+  lookup (CR f) (symReg s1) = lookup (CR f) (symReg s2) \/
+  lookup (CR f) (symReg s1) = symUndef.
+Proof.
+  intros;
+  unfold validFlag in H; apply orb_prop in H; inversion H; apply beq_SymExpr_true in H0; auto.
+Qed.
+ 
+>>>>>>> 5cd37535c504d2a2013822729f176c9c6c8985c6
 Lemma validFlags_symAllFlags_match : forall (s1 s2 : SymState),
     validFlags s1 s2 = true -> 
     symAllFlags_match s1 s2.
