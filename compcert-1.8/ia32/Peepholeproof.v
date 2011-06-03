@@ -39,123 +39,6 @@ with branching instructions. If V(b1,b2) = true and Σ|-(b1;c1),R,F,M
 
 *)
 
-Lemma beq_SymOp_true : forall a b, beq_SymOp a b = true -> a = b.
-Proof.
-  intros.
-  generalize dependent b.
-  induction a ; intros ; destruct b ; try reflexivity ; try inversion H.
-Qed.
-
-Lemma beq_val_true : forall a b, beq_val a b = true -> a = b.
-Proof.
-  intros.
-  generalize dependent b.
-  induction a ; intros.
-  unfold beq_val in H. destruct b ; inversion H. reflexivity.
-  unfold beq_val in H. destruct b ; inversion H.
-Admitted.
-
-Lemma beq_Loc_true : forall a b, beq_Loc a b = true -> a = b.
-Proof.
-  intros.
-  generalize dependent b.
-  induction a ; intros.
-  destruct b.
-  unfold beq_Loc in H. case_eq (Loc_eq (Register p) (Register p0)).
-  intros. assumption. intros.
-Admitted.
-
-Lemma beq_addrmode_true : forall a b, beq_addrmode a b = true -> a = b.
-Proof.
-  intros.
-  generalize dependent b.
-  induction a ; intros.
-  destruct b.
-Admitted.
-
-Definition admit {T: Type} : T.  Admitted.
-
-Require Import Crush.
-
-Lemma beq_SymExpr_true : forall a b, beq_SymExpr a b = true -> a = b.
-Proof.
-  intros.  generalize dependent b.
-  induction a.  intros.
-
-  simpl in H. destruct b ; crush.
-
-  (* case: binOp true *)
-  case_eq (beq_SymOp s s0). intros. apply beq_SymOp_true in H0.
-  rewrite H0.  assert (a1 = b1).
-    case_eq (beq_SymExpr a1 b1).
-    intros. apply IHa1. assumption.
-    intros. rewrite H1 in H.
-    rewrite andb_comm with (b2 := false) in H. inversion H.
-
-    rewrite H1.
-    case_eq (beq_SymExpr a2 b2).
-    intros. assert (a2 = b2). apply IHa2.
-    assumption. rewrite H3. reflexivity.
-    intros. rewrite H2 in H.
-    rewrite andb_comm with (b2 := false) in H. inversion H.
-
-  (* case: binOp false *)
-    intros. rewrite H0 in H. inversion H.
-  
-  (* case: neg *)
-    intros. destruct b ; crush.
-    assert (a = b). apply IHa. assumption.
-    rewrite H0. reflexivity.
-
-  (* case: abs_f *)
-    intros. destruct b ; crush.
-    assert (a = b). apply IHa. assumption.
-    rewrite H0. reflexivity.
-
-    intros. destruct b ; crush.
-    assert (a = b). apply IHa. assumption.
-    rewrite H0. reflexivity.
-
-    intros. destruct b ; crush.
-    apply beq_val_true in H.  rewrite H. reflexivity.
-
-    intros. destruct b ; crush.
-    assert (l = l0). apply beq_Loc_true in H. rewrite H. reflexivity.
-    rewrite H0. reflexivity.
-
-    intros. destruct b. inversion H. inversion H. inversion H. inversion H. inversion H.
-    inversion H.
-
-    inversion H.  f_equal. apply sym_eq in H1. apply andb_true_eq in H1. 
-    inversion H1. unfold beq_addrmode in H2.  assert (beq_addrmode a a0 = true).
-    case_eq (beq_addrmode a a0). reflexivity.  intros.   rewrite H3 in H1.
-    inversion H1. inversion H5.
-    apply beq_addrmode_true. assumption.
-
-
-    case_eq ((fix leq (x1 x2 : list (addrmode * SymExpr)) : bool :=
-          match x1 with
-          | nil => match x2 with
-                   | nil => true
-                   | _ :: _ => false
-                   end
-          | pair a1 v1 :: _ =>
-              match x2 with
-              | nil => false
-              | pair a2 v2 :: _ => beq_addrmode a1 a2 && beq_SymExpr v1 v2
-              end
-          end) l l0). intro.
-
-    admit.
-(*
-    generalize dependent l0.
-    induction l ; intros. destruct l0. reflexivity.
-    inversion H0.  destruct l0.
-*)
-
-    intros. rewrite H0 in H1. inversion H1.
-Qed.
-
 
 (** Symbolic States Match
 
@@ -168,26 +51,26 @@ Qed.
 Inductive symFlags_match : crbit -> SymState -> SymState -> Prop :=
 | symFlags_match_exact : 
   forall (f : crbit)  (s1 s2 : SymState),
-    lookup (Register (CR f)) (symLocs s1) = lookup (Register (CR f)) (symLocs s2) ->
+    lookup (CR f) (symReg s1) = lookup (CR f) (symReg s2) ->
     symFlags_match f s1 s2
 | symFlags_match_def : 
   forall f s1 s2,
-    lookup (Register (CR f)) (symLocs s1) = symUndef ->
+    lookup (CR f) (symReg s1) = symUndef ->
     symFlags_match f s1 s2.
 
 Lemma symFlags_match_cases :
   forall cr s1 s2,
   symFlags_match cr s1 s2 -> 
-  lookup (Register (CR cr)) (symLocs s1) = lookup (Register (CR cr)) (symLocs s2) \/
-  lookup (Register (CR cr)) (symLocs s1) = symUndef.
+  lookup (CR cr) (symReg s1) = lookup  (CR cr) (symReg s2) \/
+  lookup (CR cr) (symReg s1) = symUndef.
 Proof.
   intros; inversion H; [left; assumption | right; assumption].
 Qed.
 
 Lemma symFlags_cases_match :
   forall cr s1 s2,
-  lookup (Register (CR cr)) (symLocs s1) = lookup (Register (CR cr)) (symLocs s2) \/
-  lookup (Register (CR cr)) (symLocs s1) = symUndef ->
+  lookup (CR cr)  (symReg s1) = lookup (CR cr) (symReg s2) \/
+  lookup (CR cr) (symReg s1) = symUndef ->
   symFlags_match cr s1 s2.
 Proof. 
   intros; inversion H; [
@@ -208,7 +91,7 @@ Inductive symAllRegs_match : SymState -> SymState -> Prop :=
 | symAllRegs_match_intro :
   forall s1 s2,
     forall l, (false = isCR l ->
-              (s1 # l) = (s2 # l)) ->
+              lookup l (symReg s1) = lookup l (symReg s2)) ->
     symAllRegs_match s1 s2.
 
 Inductive symMemory_match : SymState -> SymState -> Prop :=
@@ -227,9 +110,6 @@ Inductive symStates_match : SymState -> SymState -> Prop :=
 
 Require Import Coq.Lists.List.
 
-<<<<<<< HEAD
-(* Some lemmas related to the above propositions *)
-=======
 
 Lemma andb_true_left : forall a b,
   a && b = true -> a = true.
@@ -271,18 +151,20 @@ Proof.
   unfold validFlag in H; apply orb_prop in H; inversion H; apply beq_SymExpr_true in H0; auto.
 Qed.
  
->>>>>>> 5cd37535c504d2a2013822729f176c9c6c8985c6
 Lemma validFlags_symAllFlags_match : forall (s1 s2 : SymState),
     validFlags s1 s2 = true -> 
     symAllFlags_match s1 s2.
 Proof.
-  intros s1 s2 Hcr. apply symAllFlags_match_intro.
-  (* Whatever works for this case will work for the others, use ';' once the proof is found *)
 
-  apply symFlags_cases_match.
-  unfold validFlags in Hcr.  unfold validFlag in Hcr. 
-  apply andb_prop in Hcr. 
-Admitted.
+  Ltac assertFlag := match goal with
+                       | [ H: _ |- symFlags_match ?F ?S1 ?S2 ] => 
+                         assert (validFlag (Register F) S1 S2 = true)
+                           by (apply validFlags__validFlag; assumption)
+                     end.
+  intros s1 s2 Hcr; 
+    apply symAllFlags_match_intro; assertFlag;
+      apply symFlags_cases_match; apply validFlag__eq_or_undef; assumption.
+Qed.
 
 Lemma peephole_validate_length : forall (c d : code),
   peephole_validate c d = true -> 
