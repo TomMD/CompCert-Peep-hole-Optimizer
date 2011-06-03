@@ -71,9 +71,58 @@ Inductive SymExpr : Type :=
   | Initial : Loc -> SymExpr
 
   (* Memory *)
-  | Load : addrmode -> list (addrmode * SymExpr) -> SymExpr.
+  | Load : addrmode -> list addrmode -> list SymExpr -> SymExpr.
 
-Definition cmp := binOp SymCmp.
+
+(* we need a custom induction principle for our nested data type, a la cpdt *)
+Section All.
+ Variable T : Type.
+ Variable P : T -> Prop.
+  Fixpoint All (ls : list T) : Prop :=
+    match ls with
+      | nil => True
+      | h :: t => P h /\ All t
+    end.
+End All.
+
+Implicit Arguments All.
+
+Section SymExpr_ind'.
+  Variable P : SymExpr -> Prop.
+
+  Hypothesis binOp_case : forall (o : SymOp) (l r : SymExpr),
+    P l -> P r -> P (binOp o l r).
+  Hypothesis neg_case : forall (l : SymExpr),
+    P l -> P (neg l).
+  Hypothesis abs_f_case : forall (l : SymExpr),
+    P l -> P (abs_f l).
+  Hypothesis neg_f_case : forall (l : SymExpr),
+    P l -> P (neg_f l).
+  Hypothesis Imm_case : forall l, P (Imm l).
+  Hypothesis Initial_case : forall l, P (Initial l).
+
+  Hypothesis Load_case : forall (a : addrmode) (la : list addrmode) (le : list SymExpr),
+    All P le -> P (Load a la le).
+
+  Fixpoint SymExpr_ind' (s : SymExpr) : P s :=
+    match s as s' return P s' with
+      | binOp o l r => binOp_case o l r (SymExpr_ind' l) (SymExpr_ind' r)
+      | neg l => neg_case l (SymExpr_ind' l)
+      | abs_f l => abs_f_case l  (SymExpr_ind' l)
+      | neg_f l => neg_f_case l (SymExpr_ind' l)
+      | Imm l => Imm_case l
+      | Initial l => Initial_case l
+      | Load a la le => Load_case a la le
+        ((fix list_SymExp (ls : list SymExpr) : All P le :=
+        match ls with
+          | nil => I
+          | s :: ss => conj (SymExpr_ind' s) (list_SymExp ss)
+        end) le)
+    end.
+
+
+
+definition cmp := binOp SymCmp.
 Definition test := binOp SymTest.
 Definition add := binOp SymAdd.
 Definition sub := binOp SymSub.
