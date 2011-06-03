@@ -39,6 +39,125 @@ with branching instructions. If V(b1,b2) = true and Σ|-(b1;c1),R,F,M
 
 *)
 
+Lemma beq_SymOp_true : forall a b, beq_SymOp a b = true -> a = b.
+Proof.
+  intros.
+  generalize dependent b.
+  induction a ; intros ; destruct b ; try reflexivity ; try inversion H.
+Qed.
+
+Lemma beq_val_true : forall a b, beq_val a b = true -> a = b.
+Proof.
+  intros.
+  generalize dependent b.
+  induction a ; intros.
+  unfold beq_val in H. destruct b ; inversion H. reflexivity.
+  unfold beq_val in H. destruct b ; inversion H.
+  case_eq (val_eq_dec (Vint i) (Vint i0)). intros. auto.
+  intros. rewrite H0 in H. inversion H.
+
+  unfold beq_val in H. destruct b; inversion H.
+  case_eq (val_eq_dec (Vfloat f) (Vfloat f0)).
+  intros.  auto.  intros. rewrite H0 in H. inversion H.
+
+  destruct b0 ; inversion H.
+  unfold beq_val in H. 
+  case_eq (val_eq_dec (Vptr b i) (Vptr b0 i0)).
+  intros. auto. intros. rewrite H0 in H. inversion H.
+Qed.
+
+
+Lemma beq_Loc_true : forall a b, beq_Loc a b = true -> a = b.
+Proof.
+  intros.
+  generalize dependent b.
+  induction a ; intros.
+  destruct b.
+  unfold beq_Loc in H. case_eq (Loc_eq (Register p) (Register p0)).
+  intros. assumption. intros.
+  rewrite H0 in H. inversion H. discriminate.
+  
+  destruct b ; inversion H.
+  unfold beq_Loc in H.
+  case_eq (Loc_eq (Memory a) (Memory a0)) ; intros.
+  auto.  rewrite H0 in H. inversion H.
+Qed.
+
+Lemma beq_addrmode_true : forall a b, beq_addrmode a b = true -> a = b.
+Proof.
+  intros.
+  generalize dependent b.
+  induction a ; intros.
+  destruct b.
+  unfold beq_addrmode in H.
+  match goal with
+    | [ H : (if addrmode_eq ?l ?r then _ else _) = _ |- _] => case_eq (addrmode_eq l r) ; intros
+  end.
+  auto.
+  rewrite H0 in H. inversion H.
+Qed.
+
+Lemma beq_memState_true : forall a a0 l l0, 
+  beq_SymExpr (Load a l) (Load a0 l0) = true -> Load a l = Load a0 l0.
+Proof.
+  intros.
+Admitted.
+  
+
+Definition admit {T: Type} : T.  Admitted.
+
+Require Import Crush.
+
+Lemma beq_SymExpr_true : forall a b, beq_SymExpr a b = true -> a = b.
+Proof.
+  intros.  generalize dependent b.
+  induction a.  intros.
+
+  simpl in H. destruct b ; crush.
+
+  (* case: binOp true *)
+  case_eq (beq_SymOp s s0). intros. apply beq_SymOp_true in H0.
+  rewrite H0.  assert (a1 = b1).
+    case_eq (beq_SymExpr a1 b1).
+    intros. apply IHa1. assumption.
+    intros. rewrite H1 in H.
+    rewrite andb_comm with (b2 := false) in H. inversion H.
+
+    rewrite H1.
+    case_eq (beq_SymExpr a2 b2).
+    intros. assert (a2 = b2). apply IHa2.
+    assumption. rewrite H3. reflexivity.
+    intros. rewrite H2 in H.
+    rewrite andb_comm with (b2 := false) in H. inversion H.
+
+  (* case: binOp false *)
+    intros. rewrite H0 in H. inversion H.
+  
+  (* case: neg *)
+    intros. destruct b ; crush.
+    assert (a = b). apply IHa. assumption.
+    rewrite H0. reflexivity.
+
+  (* case: abs_f *)
+    intros. destruct b ; crush.
+    assert (a = b). apply IHa. assumption.
+    rewrite H0. reflexivity.
+
+    intros. destruct b ; crush.
+    assert (a = b). apply IHa. assumption.
+    rewrite H0. reflexivity.
+
+    intros. destruct b ; crush.
+    apply beq_val_true in H.  rewrite H. reflexivity.
+
+    intros. destruct b ; crush.
+    assert (l = l0). apply beq_Loc_true in H. rewrite H. reflexivity.
+    rewrite H0. reflexivity.
+
+   intros. destruct b ; inversion H. 
+   apply beq_memState_true. assumption.
+Qed.
+
 
 (** Symbolic States Match
 
