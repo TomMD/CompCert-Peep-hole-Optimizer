@@ -100,57 +100,65 @@ Qed.
 Lemma beq_memState_true : forall a a0 l l0, 
   beq_SymExpr (Load a l) (Load a0 l0) = true -> Load a l = Load a0 l0.
 Proof.
-  intros.
+  induction l ; intros. inversion H.
+  destruct l0. 
+
+ apply sym_eq in H1. apply andb_true_eq in H1.
+  inversion H1. apply sym_eq in H2. apply beq_addrmode_true in H2. rewrite H2. reflexivity.
+  inversion H1.
+
+  
+
+  destruct l0. inversion H.
+  simpl in H.
 Admitted.
   
 
 Definition admit {T: Type} : T.  Admitted.
-
-Require Import Crush.
 
 Lemma beq_SymExpr_true : forall a b, beq_SymExpr a b = true -> a = b.
 Proof.
   intros.  generalize dependent b.
   induction a.  intros.
 
-  simpl in H. destruct b ; crush.
+  simpl in H. destruct b ; inversion H. 
 
   (* case: binOp true *)
   case_eq (beq_SymOp s s0). intros. apply beq_SymOp_true in H0.
   rewrite H0.  assert (a1 = b1).
     case_eq (beq_SymExpr a1 b1).
     intros. apply IHa1. assumption.
-    intros. rewrite H1 in H.
+    intros. rewrite H2 in H.
     rewrite andb_comm with (b2 := false) in H. inversion H.
 
-    rewrite H1.
+    rewrite H2.
     case_eq (beq_SymExpr a2 b2).
     intros. assert (a2 = b2). apply IHa2.
-    assumption. rewrite H3. reflexivity.
-    intros. rewrite H2 in H.
+    assumption. rewrite H4. reflexivity.
+    intros. rewrite H3 in H.
     rewrite andb_comm with (b2 := false) in H. inversion H.
 
   (* case: binOp false *)
     intros. rewrite H0 in H. inversion H.
   
   (* case: neg *)
-    intros. destruct b ; crush.
+    intros. destruct b ; inversion H.
     assert (a = b). apply IHa. assumption.
     rewrite H0. reflexivity.
 
   (* case: abs_f *)
-    intros. destruct b ; crush.
+    intros. destruct b ; inversion H.
     assert (a = b). apply IHa. assumption.
     rewrite H0. reflexivity.
 
-    intros. destruct b ; crush.
+    intros. destruct b ; inversion H.
     assert (a = b). apply IHa. assumption.
     rewrite H0. reflexivity.
 
-    intros. destruct b ; crush.
+    intros. destruct b ; inversion H.
     apply beq_val_true in H.  rewrite H. reflexivity.
 
-    intros. destruct b ; crush.
+    intros. destruct b ; inversion H.
     assert (l = l0). apply beq_Loc_true in H. rewrite H. reflexivity.
     rewrite H0. reflexivity.
 
