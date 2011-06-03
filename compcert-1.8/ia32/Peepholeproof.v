@@ -64,7 +64,7 @@ Lemma symFlags_match_cases :
   lookup (CR cr) (symReg s1) = lookup  (CR cr) (symReg s2) \/
   lookup (CR cr) (symReg s1) = symUndef.
 Proof.
-  intros. inversion H. left. assumption. right. assumption.
+  intros; inversion H; [left; assumption | right; assumption].
 Qed.
 
 Lemma symFlags_cases_match :
@@ -73,9 +73,9 @@ Lemma symFlags_cases_match :
   lookup (CR cr) (symReg s1) = symUndef ->
   symFlags_match cr s1 s2.
 Proof. 
-  intros.  inversion H.
-  apply symFlags_match_exact ; assumption.
-  apply symFlags_match_def ; assumption.
+  intros; inversion H; [
+  apply symFlags_match_exact ; assumption |
+  apply symFlags_match_def ; assumption].
 Qed.
 
 Inductive symAllFlags_match : SymState -> SymState -> Prop :=
@@ -114,8 +114,8 @@ Require Import Coq.Lists.List.
 Lemma andb_true_left : forall a b,
   a && b = true -> a = true.
 Proof.
-  intros. symmetry in H. apply andb_true_eq in H.
-  inversion H. auto.
+  intros; symmetry in H; apply andb_true_eq in H;
+  inversion H; auto.
 Qed.
 
 (* Some lemmas related to the above propositions *)
@@ -147,7 +147,7 @@ Lemma validFlag__eq_or_undef : forall f s1 s2,
   lookup (CR f) (symReg s1) = lookup (CR f) (symReg s2) \/
   lookup (CR f) (symReg s1) = symUndef.
 Proof.
-  intros.
+  intros;
   unfold validFlag in H; apply orb_prop in H; inversion H; apply beq_SymExpr_true in H0; auto.
 Qed.
  
