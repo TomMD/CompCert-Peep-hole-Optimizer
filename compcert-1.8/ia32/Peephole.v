@@ -173,12 +173,16 @@ Definition beq_SymExpr (s1 s2 : SymExpr) : bool :=
 *)
 
 Fixpoint beq_SymExpr (s1 s2 : SymExpr) : bool :=
-  let leq := fix leq (x1 x2 : list (addrmode*SymExpr)) :=
-    match x1, x2 with
-      | nil, nil => true
-      | (a1,v1)::xs, (a2,v2)::ys => beq_addrmode a1 a2 && beq_SymExpr v1 v2
-      | _, _  => false
+  let pairEq := fun xs ys => 
+    match xs, ys with
+      | (a1,e1), (a2,e2) => beq_addrmode a1 a2 && beq_SymExpr e1 e2
     end in
+    let leq := fix leq (x1 x2 : list (addrmode*SymExpr)) :=
+      match x1, x2 with
+        | nil, nil => true
+        | x::xs, y::ys => pairEq x y
+        | _, _  => false
+      end in
     match s1, s2 with
       | binOp o1 e11 e12, binOp o2 e21 e22 => beq_SymOp o1 o2 && beq_SymExpr e11 e21 
                                               && beq_SymExpr e12 e22
