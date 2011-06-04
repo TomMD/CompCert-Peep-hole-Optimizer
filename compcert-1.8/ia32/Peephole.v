@@ -153,7 +153,7 @@ Inductive Constraint : Type :=
 Definition addrmode_eq : forall (a1 a2 : addrmode), {a1 = a2} + {a1 <> a2}.
 Proof.
   decide equality.  decide equality. apply Int.eq_dec. decide equality.
-  apply Int.eq_dec.  SearchAbout ident. apply ident_eq.
+  apply Int.eq_dec. apply ident_eq.
   decide equality. decide equality. apply Int.eq_dec.
   apply ireg_eq.
   decide equality. apply ireg_eq.
