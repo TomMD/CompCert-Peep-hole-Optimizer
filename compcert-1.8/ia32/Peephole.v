@@ -124,7 +124,7 @@ End SymExpr_ind'.
 
 
 
-definition cmp := binOp SymCmp.
+Definition cmp := binOp SymCmp.
 Definition test := binOp SymTest.
 Definition add := binOp SymAdd.
 Definition sub := binOp SymSub.
@@ -224,25 +224,25 @@ Definition beq_SymExpr (s1 s2 : SymExpr) : bool :=
 *)
 
 Fixpoint beq_SymExpr (s1 s2 : SymExpr) : bool :=
-  let pairEq := fun xs ys => 
-    match xs, ys with
-      | (a1,e1), (a2,e2) => beq_addrmode a1 a2 && beq_SymExpr e1 e2
+  let leq_SE := fix leq_SE (x1 x2 : list SymExpr) :=
+    match x1, x2 with
+      | nil, nil => true
+      | x::xs, y::ys => beq_SymExpr x y && leq_SE xs ys
+      | _, _  => false
     end in
-    let leq := fix leq (x1 x2 : list (addrmode*SymExpr)) :=
-      match x1, x2 with
-        | nil, nil => true
-        | x::xs, y::ys => pairEq x y
-        | _, _  => false
-      end in
+    let leq_AM := fun l1 l2 =>
+      if list_eq_dec addrmode_eq l1 l2
+        then true
+        else false in
     match s1, s2 with
       | binOp o1 e11 e12, binOp o2 e21 e22 => beq_SymOp o1 o2 && beq_SymExpr e11 e21 
-                                              && beq_SymExpr e12 e22
+        && beq_SymExpr e12 e22
       | neg e1, neg e2 => beq_SymExpr e1 e2
       | abs_f e1, abs_f e2 => beq_SymExpr e1 e2
       | neg_f e1, neg_f e2 => beq_SymExpr e1 e2
       | Imm v1, Imm v2 => beq_val v1 v2
       | Initial l1, Initial l2 => beq_Loc l1 l2
-      | Load a1 l1, Load a2 l2 => leq l1 l2 && beq_addrmode a1 a2
+      | Load a1 as1 es1, Load a2 as2 es2 => leq_AM as1 as2 && leq_SE es1 es2 && beq_addrmode a1 a2
       | _,_ => false
     end.
 
@@ -328,10 +328,17 @@ Definition initMem : mems := initLocStore addrmode_eq (compose Initial Memory).
 Definition initReg : regs := initLocStore preg_eq (compose Initial Register).
 Definition initSymSt : SymState := SymSt nil initMem initReg.
 
+Fixpoint unzip {A B : Type} (ps : list (A*B)) : (list A * list B) :=
+  match ps with
+    | nil => (nil, nil)
+    | (a, b) :: ps' => let (as',bs') := unzip ps' in (a :: as', b :: bs')
+  end.
+
 Notation "a # b" :=
   match b with
   | Register p => (lookup p (symReg a))
-  | Memory m   => Load m (store (symMem a))  (* (lookup m (symMem a)) *)
+  | Memory m   => let (addrs,syms) := unzip (store (symMem a)) in 
+    Load m addrs syms  (* (lookup m (symMem a)) *)
   end (at level 1, only parsing).
 
 Notation "a # b <- c" :=
@@ -696,10 +703,10 @@ Fixpoint subset (a b : list Constraint) : bool :=
 
 Fixpoint normalizeSymOp (o : SymOp) (e1 e2 : SymExpr) : SymExpr := binOp o e1 e2.
 
-Definition nonaliasedLookup (a : addrmode) (m : list (addrmode * SymExpr)) : SymExpr :=
-  Load a m.
+Definition nonaliasedLookup (a : addrmode) (addrs : list addrmode)(syms : list SymExpr) : SymExpr :=
+  Load a addrs syms.
 
-Fixpoint normalizeMem (m : list (addrmode * SymExpr)) : list (addrmode * SymExpr) := m.
+Fixpoint normalizeMem (addrs : list addrmode) (syms : list SymExpr) : (list addrmode * list SymExpr) := (addrs, syms).
 
 Fixpoint normalize (s : SymExpr) : SymExpr :=
   match s with
@@ -723,7 +730,8 @@ Fixpoint normalize (s : SymExpr) : SymExpr :=
         end
     | Imm v => Imm v
     | Initial l => Initial l
-    | Load a m => nonaliasedLookup a (normalizeMem m)
+    | Load a addrs syms => let (addrs', syms') := normalizeMem addrs syms
+      in nonaliasedLookup a addrs' syms'
   end.
 
 Definition validMem (c : SymState) (d : SymState) : bool := false.
