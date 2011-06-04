@@ -90,8 +90,8 @@ Implicit Arguments All.
 Section SymExpr_ind'.
   Variable P : SymExpr -> Prop.
 
-  Hypothesis binOp_case : forall (o : SymOp) (l r : SymExpr),
-    P l -> P r -> P (binOp o l r).
+  Hypothesis binOp_case : forall (o : SymOp) (l : SymExpr),
+    P l -> forall (r: SymExpr), P r -> P (binOp o l r).
   Hypothesis neg_case : forall (l : SymExpr),
     P l -> P (neg l).
   Hypothesis abs_f_case : forall (l : SymExpr),
@@ -106,19 +106,21 @@ Section SymExpr_ind'.
 
   Fixpoint SymExpr_ind' (s : SymExpr) : P s :=
     match s as s' return P s' with
-      | binOp o l r => binOp_case o l r (SymExpr_ind' l) (SymExpr_ind' r)
+      | binOp o l r => binOp_case o l (SymExpr_ind' l) r (SymExpr_ind' r)
       | neg l => neg_case l (SymExpr_ind' l)
       | abs_f l => abs_f_case l  (SymExpr_ind' l)
       | neg_f l => neg_f_case l (SymExpr_ind' l)
       | Imm l => Imm_case l
       | Initial l => Initial_case l
       | Load a la le => Load_case a la le
-        ((fix list_SymExp (ls : list SymExpr) : All P le :=
+        ((fix list_SymExp (ls : list SymExpr) : All P ls :=
         match ls with
           | nil => I
           | s :: ss => conj (SymExpr_ind' s) (list_SymExp ss)
         end) le)
     end.
+
+End SymExpr_ind'.
 
 
 
