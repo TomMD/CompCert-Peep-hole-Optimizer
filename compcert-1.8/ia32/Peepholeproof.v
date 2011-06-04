@@ -97,75 +97,73 @@ Proof.
   rewrite H0 in H. inversion H.
 Qed.
 
-Lemma beq_memState_true : forall a a0 l l0, 
-  beq_SymExpr (Load a l) (Load a0 l0) = true -> Load a l = Load a0 l0.
+
+Lemma andb_true_left : forall a b,
+  a && b = true -> a = true.
 Proof.
-  induction l ; intros. inversion H.
-  destruct l0. 
+  intros; symmetry in H; apply andb_true_eq in H;
+  inversion H; auto.
+Qed.
 
- apply sym_eq in H1. apply andb_true_eq in H1.
-  inversion H1. apply sym_eq in H2. apply beq_addrmode_true in H2. rewrite H2. reflexivity.
-  inversion H1.
+Lemma andb_true_right : forall a b,
+  a && b = true -> b = true.
+Proof.
+  intros; symmetry in H; apply andb_true_eq in H;
+  inversion H; auto.
+Qed.
 
-  
+Ltac split_andb' H := 
+  let H0 := fresh "H" in assert (H0 := H);
+  apply andb_true_left in H; 
+    apply andb_true_right in H0.
 
-  destruct l0. inversion H.
-  simpl in H.
-Admitted.
-  
+Ltac split_andb :=
+  repeat
+    match goal with
+      | [ H : _ && _ = true |- _ ] => split_andb' H
+    end.
 
-Definition admit {T: Type} : T.  Admitted.
+Ltac invert_beq_SymExpr :=
+  match goal with
+    | [ H : beq_SymExpr _ _ = true |- _ ] => inversion H
+  end.
 
 Lemma beq_SymExpr_true : forall a b, beq_SymExpr a b = true -> a = b.
 Proof.
-  intros.  generalize dependent b.
-  induction a.  intros.
+  intro a.
+  induction a using SymExpr_ind'; intros;
+    destruct b; try (invert_beq_SymExpr; try (apply IHa in H1; subst; auto)).
 
-  simpl in H. destruct b ; inversion H. 
+  (* case: binOp *)
+  split_andb;
+  apply IHa1 in H2;
+  apply IHa2 in H0;
+  apply beq_SymOp_true in H1; subst; auto.
 
-  (* case: binOp true *)
-  case_eq (beq_SymOp s s0). intros. apply beq_SymOp_true in H0.
-  rewrite H0.  assert (a1 = b1).
-    case_eq (beq_SymExpr a1 b1).
-    intros. apply IHa1. assumption.
-    intros. rewrite H2 in H.
-    rewrite andb_comm with (b2 := false) in H. inversion H.
+  (* case: Imm *)
+  apply beq_val_true in H; subst; auto.
 
-    rewrite H2.
-    case_eq (beq_SymExpr a2 b2).
-    intros. assert (a2 = b2). apply IHa2.
-    assumption. rewrite H4. reflexivity.
-    intros. rewrite H3 in H.
-    rewrite andb_comm with (b2 := false) in H. inversion H.
+  (* case: Initial *)
+  apply beq_Loc_true in H; subst; auto. 
 
-  (* case: binOp false *)
-    intros. rewrite H0 in H. inversion H.
-  
-  (* case: neg *)
-    intros. destruct b ; inversion H.
-    assert (a = b). apply IHa. assumption.
-    rewrite H0. reflexivity.
+  (* case: Load *)
+  split_andb.
 
-  (* case: abs_f *)
-    intros. destruct b ; inversion H.
-    assert (a = b). apply IHa. assumption.
-    rewrite H0. reflexivity.
+(* Here it gets ugly... but its done... come clean this up. *)
+  assert (le = l0). 
 
-    intros. destruct b ; inversion H.
-    assert (a = b). apply IHa. assumption.
-    rewrite H0. reflexivity.
+  clear H0 H2 H1.
+  generalize dependent l0.
+  induction le; intros. destruct l0. reflexivity. inversion H3.
+  destruct l0. inversion H3.
+  assert (a1 = s). apply H. split_andb; assumption.
+  rewrite H0; f_equal. apply IHle. apply H. split_andb. assumption.
 
-    intros. destruct b ; inversion H.
-    apply beq_val_true in H.  rewrite H. reflexivity.
-
-    intros. destruct b ; inversion H.
-    assert (l = l0). apply beq_Loc_true in H. rewrite H. reflexivity.
-    rewrite H0. reflexivity.
-
-   intros. destruct b ; inversion H. 
-   apply beq_memState_true. assumption.
+  apply beq_addrmode_true in H1.
+  f_equal; auto.
+  case_eq (list_eq_dec addrmode_eq la l). intros. assumption.
+  intros n contra; rewrite contra in H2. inversion H2.
 Qed.
-
 
 (** Symbolic States Match
 
@@ -238,20 +236,7 @@ Inductive symStates_match : SymState -> SymState -> Prop :=
 Require Import Coq.Lists.List.
 
 
-Lemma andb_true_left : forall a b,
-  a && b = true -> a = true.
-Proof.
-  intros; symmetry in H; apply andb_true_eq in H;
-  inversion H; auto.
-Qed.
-
 (* Some lemmas related to the above propositions *)
-
-(* REPLACE ME WITH THE REAL LEMMA!!! *)
-Lemma beq_SymExpr_true : forall a b,
-  beq_SymExpr a b = true -> a = b.
-Proof.
-Admitted.
 
 Lemma validFlags__validFlag : forall f s1 s2,
   validFlags s1 s2 = true -> validFlag (Register (CR f)) s1 s2 = true.
