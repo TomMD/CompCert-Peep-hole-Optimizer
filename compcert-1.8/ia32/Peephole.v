@@ -71,9 +71,58 @@ Inductive SymExpr : Type :=
   | Initial : Loc -> SymExpr
 
   (* Memory *)
-  | Load : list (addrmode * SymExpr) -> addrmode -> SymExpr.
+  | Load : addrmode -> list addrmode -> list SymExpr -> SymExpr.
 
-Definition cmp := binOp SymCmp.
+
+(* we need a custom induction principle for our nested data type, a la cpdt *)
+Section All.
+ Variable T : Type.
+ Variable P : T -> Prop.
+  Fixpoint All (ls : list T) : Prop :=
+    match ls with
+      | nil => True
+      | h :: t => P h /\ All t
+    end.
+End All.
+
+Implicit Arguments All.
+
+Section SymExpr_ind'.
+  Variable P : SymExpr -> Prop.
+
+  Hypothesis binOp_case : forall (o : SymOp) (l r : SymExpr),
+    P l -> P r -> P (binOp o l r).
+  Hypothesis neg_case : forall (l : SymExpr),
+    P l -> P (neg l).
+  Hypothesis abs_f_case : forall (l : SymExpr),
+    P l -> P (abs_f l).
+  Hypothesis neg_f_case : forall (l : SymExpr),
+    P l -> P (neg_f l).
+  Hypothesis Imm_case : forall l, P (Imm l).
+  Hypothesis Initial_case : forall l, P (Initial l).
+
+  Hypothesis Load_case : forall (a : addrmode) (la : list addrmode) (le : list SymExpr),
+    All P le -> P (Load a la le).
+
+  Fixpoint SymExpr_ind' (s : SymExpr) : P s :=
+    match s as s' return P s' with
+      | binOp o l r => binOp_case o l r (SymExpr_ind' l) (SymExpr_ind' r)
+      | neg l => neg_case l (SymExpr_ind' l)
+      | abs_f l => abs_f_case l  (SymExpr_ind' l)
+      | neg_f l => neg_f_case l (SymExpr_ind' l)
+      | Imm l => Imm_case l
+      | Initial l => Initial_case l
+      | Load a la le => Load_case a la le
+        ((fix list_SymExp (ls : list SymExpr) : All P le :=
+        match ls with
+          | nil => I
+          | s :: ss => conj (SymExpr_ind' s) (list_SymExp ss)
+        end) le)
+    end.
+
+
+
+definition cmp := binOp SymCmp.
 Definition test := binOp SymTest.
 Definition add := binOp SymAdd.
 Definition sub := binOp SymSub.
@@ -108,12 +157,24 @@ Proof.
   decide equality. apply ireg_eq.
 Defined.
 
+Definition beq_addrmode (a b : addrmode) : bool :=
+  match addrmode_eq a b with
+    | left _ => true
+    | right _ => false
+  end.
+
 (* to decide equality of symbolic expressions, we need to decide equality of values *)
 Definition val_eq_dec : forall (v1 v2 : val), {v1 = v2} + {v1 <> v2}.
 Proof.
   decide equality ; try apply Int.eq_dec.
   apply Float.eq_dec.  apply eq_block.
 Defined.
+
+Definition beq_val (a b : val) : bool :=
+  match val_eq_dec a b with
+    | left _ => true
+    | right _ => false
+  end.
 
 (* define equality for Loc, used in the Loc store *)
 Lemma Loc_eq : forall (x y : Loc), {x = y} +  {x <> y}.
@@ -123,35 +184,80 @@ Proof.
   repeat decide equality; try apply Int.eq_dec.
 Defined.
 
+Definition beq_Loc (a b : Loc) : bool :=
+  match Loc_eq a b with
+    | left _ => true
+    | right _ => false
+  end.
+
 (* decide equality for symbolic operators *)
 Lemma SymOp_eq : forall (x y : SymOp), {x = y} + {x <> y}.
 Proof.
   decide equality.
-Defined. 
-
-(* decide equality for symbolic expressions. note this is *syntactic* equality *)
-Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}.
-Proof.
-  refine (fix f (a b : SymExpr) : {a = b} + {a <> b} :=
-    match a, b as _ return _ with
-      | Imm _, _ => _
-      | _, _ => _
-  end);
-  decide equality ; try apply SymOp_eq ; try apply val_eq_dec ; try apply Loc_eq ;
-  try apply addrmode_eq ; try (apply list_eq_dec ; try apply addrmode_eq);
-  decide equality ; (try apply addrmode_eq ; try assumption). 
 Defined.
+
+Definition beq_SymOp (a b : SymOp) : bool :=
+  match SymOp_eq a b with
+    | left _ => true
+    | right _ => false
+  end.
+
+(* decide equality for symbolic expressions. note this is *syntactic* equality
+Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}.
+  let MemState_Eq := fix MemState_Eq (f1 f2 : MemState) :=
+    match f1,f2 as _ with
+      | nil,nil => left _
+      | nil,_   => right _
+      | _,nil   => right _
+      | (a1,e1)::xs, (a2,e2)::ys => SymExpr_dec e1 e2 /\ addrmode_eq a1 a2
+    end
+  in decide equality.
+Admitted.
 
 Definition beq_SymExpr (s1 s2 : SymExpr) : bool :=
   match SymExpr_dec s1 s2 with
   | left _ => true
   | right _ => false
   end.
+*)
 
+Fixpoint beq_SymExpr (s1 s2 : SymExpr) : bool :=
+  let pairEq := fun xs ys => 
+    match xs, ys with
+      | (a1,e1), (a2,e2) => beq_addrmode a1 a2 && beq_SymExpr e1 e2
+    end in
+    let leq := fix leq (x1 x2 : list (addrmode*SymExpr)) :=
+      match x1, x2 with
+        | nil, nil => true
+        | x::xs, y::ys => pairEq x y
+        | _, _  => false
+      end in
+    match s1, s2 with
+      | binOp o1 e11 e12, binOp o2 e21 e22 => beq_SymOp o1 o2 && beq_SymExpr e11 e21 
+                                              && beq_SymExpr e12 e22
+      | neg e1, neg e2 => beq_SymExpr e1 e2
+      | abs_f e1, abs_f e2 => beq_SymExpr e1 e2
+      | neg_f e1, neg_f e2 => beq_SymExpr e1 e2
+      | Imm v1, Imm v2 => beq_val v1 v2
+      | Initial l1, Initial l2 => beq_Loc l1 l2
+      | Load a1 l1, Load a2 l2 => leq l1 l2 && beq_addrmode a1 a2
+      | _,_ => false
+    end.
+
+(*
 Definition constraint_eq : forall (c1 c2 : Constraint), {c1 = c2} + {c1 <> c2}.
 Proof.
  decide equality. apply addrmode_eq. apply addrmode_eq. apply SymExpr_dec.
 Defined.
+*)
+
+Definition beq_constraint (a b : Constraint) : bool :=
+  match a, b with
+    | ReadMem a1, ReadMem a2 => beq_addrmode a1 a2
+    | WriteMem a1, WriteMem a2 => beq_addrmode a1 a2
+    | DivBy e1, DivBy e2 => beq_SymExpr e1 e2
+    | _, _ => false
+  end.
 
 (* the type of our memory store *)
 Definition mems := @LocStore addrmode SymExpr addrmode_eq.
@@ -223,7 +329,7 @@ Definition initSymSt : SymState := SymSt nil initMem initReg.
 Notation "a # b" :=
   match b with
   | Register p => (lookup p (symReg a))
-  | Memory m   => Load m (store (sysMem a))  (* (lookup m (symMem a)) *)
+  | Memory m   => Load m (store (symMem a))  (* (lookup m (symMem a)) *)
   end (at level 1, only parsing).
 
 Notation "a # b <- c" :=
@@ -555,7 +661,7 @@ Notation "a '&&&' b" :=
       else Utils.in_right
     else Utils.in_right).
 
-
+(*
 Fixpoint allLocs_dec (l : list Loc) (a b : SymState) : bool :=
   match l with
     | nil => true
@@ -564,6 +670,7 @@ Fixpoint allLocs_dec (l : list Loc) (a b : SymState) : bool :=
         then allLocs_dec ls a b
         else false
   end.
+*)
 
 Definition isCR (c : preg) : bool :=
   match c with
@@ -577,15 +684,45 @@ Fixpoint all {A : Type} (p : A -> bool) (xs : list A) : bool :=
     | _   => false
   end.
 
+(* Begin Stubs! *)
 (* Test if 'a' is a subset of 'b' *)
 Fixpoint subset (a b : list Constraint) : bool :=
   match a with
     | nil => true
-    | (x::xs) => existsb (fun z => constraint_eq z x) b && subset xs b
+    | (x::xs) => existsb (fun z => beq_constraint z x) b && subset xs b (* fixme direct eq isn't quite right *)
   end.
 
-(* Begin Stubs! *)
-Fixpoint normalize (s : SymExpr) : SymExpr := s.
+Fixpoint normalizeSymOp (o : SymOp) (e1 e2 : SymExpr) : SymExpr := binOp o e1 e2.
+
+Definition nonaliasedLookup (a : addrmode) (m : list (addrmode * SymExpr)) : SymExpr :=
+  Load a m.
+
+Fixpoint normalizeMem (m : list (addrmode * SymExpr)) : list (addrmode * SymExpr) := m.
+
+Fixpoint normalize (s : SymExpr) : SymExpr :=
+  match s with
+    | binOp o e1 e2 =>
+      let d1 := normalize e1 in let d2 := normalize e2 in
+        normalizeSymOp o d1 d2
+    | neg e =>
+        match e with
+          | neg x => normalize x
+          | _     => normalize e
+        end
+    | abs_f e =>
+        match e with
+          | abs_f x => abs_f (normalize x)
+          | _       => abs_f (normalize e)
+        end
+    | neg_f e =>
+        match e with
+          | neg_f x => normalize x
+          | _       => normalize e
+        end
+    | Imm v => Imm v
+    | Initial l => Initial l
+    | Load a m => nonaliasedLookup a (normalizeMem m)
+  end.
 
 Definition validMem (c : SymState) (d : SymState) : bool := false.
 
@@ -593,7 +730,7 @@ Definition validRegs (l : list preg) (c d : SymState) : bool := false.
 (* End stubs (I hope) *)
 
 Definition validFlag (f : Loc) (c : SymState) (d : SymState) : bool :=
-  beq_SymExpr (c # f) (Initial f) || beq_SymExpr (c # f) (d # f).
+  beq_SymExpr (c # f) symUndef || beq_SymExpr (c # f) (d # f).
 
 (* A valid flag is one with the same definition or one that becomes
   "more defined" from a previous symUndef value. *)
