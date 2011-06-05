@@ -165,6 +165,15 @@ Proof.
   intros n contra; rewrite contra in H2. inversion H2.
 Qed.
 
+
+Lemma beq_SymExpr_same : forall a, beq_SymExpr a a = true.
+Proof.
+  induction a using SymExpr_ind'; intros. simpl.
+  rewrite IHa1. rewrite IHa2. unfold beq_SymOp.
+  case_eq (SymOp_eq o o). intros. reflexivity. intros. elimtype False.
+  auto.
+Admitted.
+
 (** Symbolic States Match
 
    Here we define a series of Inductive Propositions which define what
@@ -203,6 +212,7 @@ Proof.
   apply symFlags_match_def ; assumption].
 Qed.
 
+
 Inductive symAllFlags_match : SymState -> SymState -> Prop :=
 | symAllFlags_match_intro:
   forall s1 s2,
@@ -211,6 +221,7 @@ Inductive symAllFlags_match : SymState -> SymState -> Prop :=
     symFlags_match PF s1 s2 ->
     symFlags_match SOF s1 s2 ->
     symAllFlags_match s1 s2.
+
 
 Inductive symAllRegs_match : SymState -> SymState -> Prop :=
 | symAllRegs_match_intro :
@@ -277,6 +288,44 @@ Proof.
     apply symAllFlags_match_intro; assertFlag;
       apply symFlags_cases_match; apply validFlag__eq_or_undef; assumption.
 Qed.
+
+(* not sure we need this... but it occured to me. Admitted, but
+appears trivial with the right automation *)
+Lemma symAllFlags_match__validFlags : forall s1 s2,
+  symAllFlags_match s1 s2 ->
+  validFlags s1 s2 = true.
+Proof.
+  intros. inversion H; subst;
+  repeat
+    match goal with
+      | [ H: symFlags_match _ _ _ |- _ ] => inversion H; clear H; subst
+    end.
+  unfold validFlags. unfold validFlag. rewrite H1. rewrite H2. rewrite H3. rewrite H4. simpl.
+  repeat rewrite beq_SymExpr_same. repeat rewrite orb_true_r. reflexivity.
+Admitted.
+
+Lemma peephole_validate__symFlags_match : forall c d initS1 initS2 s1 s2,
+  peephole_validate c d = true ->
+  symExec c initS1 = Some s1 -> 
+  symExec d initS2 = Some s2 ->
+  symAllFlags_match s1 s2.
+Proof.
+  induction c; intros; destruct d. intros; simpl in H; inversion H.
+  intros; simpl in H; inversion H.
+
+  Focus 2. let PV := fresh "H" in assert (PV := H). simpl in H.
+  simpl in H0. 
+(* possible lemmas needed here:
+
+  symExec_step: forall a c initS S, 
+      symExec (a::c) initS = Some S -> 
+      symExec c (single_symExec a initS) = Some S
+
+  peephole_validate_step : forall a i c d, peephole_validate (a::c) (i::d) = true ->
+      peephole_validate c d = true
+*)
+Admitted.  
+
 
 Lemma peephole_validate_length : forall (c d : code),
   peephole_validate c d = true -> 
