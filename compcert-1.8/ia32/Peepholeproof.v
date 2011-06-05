@@ -304,6 +304,27 @@ Proof.
   repeat rewrite beq_SymExpr_same. repeat rewrite orb_true_r. reflexivity.
 Admitted.
 
+Lemma symExec_first_instr : forall a c initS S,
+  symExec (a::c) initS = Some S ->
+  exists S', single_symExec a initS = Some S'.
+Proof.
+intros.
+simpl in H. destruct (single_symExec a initS).
+exists s. reflexivity.
+inversion H.
+Qed.
+
+Lemma symExec_step: forall a c initS S S', 
+      symExec (a::c) initS = Some S -> 
+      single_symExec a initS = Some S' ->
+      symExec c S' = Some S.
+Proof.
+  intros.
+  unfold symExec in H.
+  rewrite H0 in H. rewrite <- H. reflexivity.
+Qed.
+
+
 Lemma peephole_validate__symFlags_match : forall c d initS1 initS2 s1 s2,
   peephole_validate c d = true ->
   symExec c initS1 = Some s1 -> 
@@ -311,19 +332,15 @@ Lemma peephole_validate__symFlags_match : forall c d initS1 initS2 s1 s2,
   symAllFlags_match s1 s2.
 Proof.
   induction c; intros; destruct d. intros; simpl in H; inversion H.
+
+  constructor.
   intros; simpl in H; inversion H.
 
-  Focus 2. let PV := fresh "H" in assert (PV := H). simpl in H.
-  simpl in H0. 
-(* possible lemmas needed here:
 
-  symExec_step: forall a c initS S, 
-      symExec (a::c) initS = Some S -> 
-      symExec c (single_symExec a initS) = Some S
+  (* the induction hypothesis is wrong here... nothing says that if
+  peephole_validate (a::c) (i::d) = true that we can step to
+  peephole_validate c d = true... *)
 
-  peephole_validate_step : forall a i c d, peephole_validate (a::c) (i::d) = true ->
-      peephole_validate c d = true
-*)
 Admitted.  
 
 
