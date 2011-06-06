@@ -48,7 +48,7 @@ with branching instructions. If V(b1,b2) = true and Σ|-(b1;c1),R,F,M
     file.
 *)
 
-(* extract the left argument from a boolean and hypothesis *)
+(* extract the left argument from a boolean conjunction hypothesis *)
 Lemma andb_true_left : forall a b,
   a && b = true -> a = true.
 Proof.
@@ -56,7 +56,7 @@ Proof.
   inversion H; auto.
 Qed.
 
-(* extract the right argument from a boolean and hypothesis *)
+(* extract the right argument from a boolean conjunction hypothesis *)
 Lemma andb_true_right : forall a b,
   a && b = true -> b = true.
 Proof.
@@ -65,12 +65,13 @@ Proof.
 Qed. 
 
 
-(* tactics for manipulating boolean and hypotheses and extracting all
-the operands into separate hypotheses. *)
- Ltac split_andb' H := 
-   let H0 := fresh "H" in assert (H0 := H); 
-     apply andb_true_left in H; apply
-       andb_true_right in H0.
+(* tactics for manipulating boolean conjunction hypotheses and
+extracting all the operands into separate hypotheses. *)
+
+Ltac split_andb' H := 
+  let H0 := fresh "H" in assert (H0 := H); 
+    apply andb_true_left in H; apply
+      andb_true_right in H0.
 
 Ltac split_andb :=
   repeat
@@ -90,10 +91,11 @@ Lemma symExec_first_instr : forall a c initS S,
   symExec (a::c) initS = Some S ->
   exists S', single_symExec a initS = Some S'.
 Proof.
-  intros.
-  simpl in H. destruct (single_symExec a initS).
-  exists s. reflexivity.
-  inversion H.
+  intros; simpl in *.
+  match goal with
+    | [ H : match ?O with | Some _ => _ | None => _ end = _ |- _ ] =>
+      destruct O; [eexists; reflexivity | inversion H ]
+  end.
 Qed.
 
 Lemma symExec_step: forall a c initS S S', 
@@ -116,38 +118,29 @@ Qed.
     in the overall correctness proofs of peephole_validate 
 *)
 
-Lemma beq_SymOp_true : forall a b, beq_SymOp a b = true -> a = b.
+Lemma beq_SymOp_correct : forall a b, beq_SymOp a b = true -> a = b.
 Proof.
-  intros.
-  generalize dependent b.
   induction a ; intros ; destruct b ; try reflexivity ; try inversion H.
 Qed.
 
-Lemma beq_val_true : forall a b, beq_val a b = true -> a = b.
+Lemma beq_val_correct : forall a b, beq_val a b = true -> a = b.
 Proof.
-  intros.
-  generalize dependent b.
-  induction a ; intros.
-  unfold beq_val in H. destruct b ; inversion H. reflexivity.
-  unfold beq_val in H. destruct b ; inversion H.
-  case_eq (val_eq_dec (Vint i) (Vint i0)). intros. auto.
-  intros. rewrite H0 in H. inversion H.
+  Ltac case_val_eq :=
+    match goal with
+      | [ H : (if val_eq ?L ?R then _ else _) = true |- _ ] =>
+      case_eq (val_eq L R); intros case CASE; auto; rewrite CASE in H; inversion H
+    end.
 
-  unfold beq_val in H. destruct b; inversion H.
-  case_eq (val_eq_dec (Vfloat f) (Vfloat f0)).
-  intros.  auto.  intros. rewrite H0 in H. inversion H.
-
-  destruct b0 ; inversion H.
-  unfold beq_val in H. 
-  case_eq (val_eq_dec (Vptr b i) (Vptr b0 i0)).
-  intros. auto. intros. rewrite H0 in H. inversion H.
+  induction a ; intros; try (
+    unfold beq_val in H; 
+      match goal with 
+        | [ _ : _ |- _ = ?B ] => destruct B; inversion H
+      end);
+  try reflexivity; try case_val_eq.
 Qed.
 
-
-Lemma beq_Loc_true : forall a b, beq_Loc a b = true -> a = b.
+Lemma beq_Loc_correct : forall a b, beq_Loc a b = true -> a = b.
 Proof.
-  intros.
-  generalize dependent b.
   induction a ; intros.
   destruct b.
   unfold beq_Loc in H. case_eq (Loc_eq (Register p) (Register p0)).
@@ -160,7 +153,7 @@ Proof.
   auto.  rewrite H0 in H. inversion H.
 Qed.
 
-Lemma beq_addrmode_true : forall a b, beq_addrmode a b = true -> a = b.
+Lemma beq_addrmode_correct : forall a b, beq_addrmode a b = true -> a = b.
 Proof.
   intros.
   generalize dependent b.
@@ -176,7 +169,7 @@ Qed.
 
 
 
-Lemma beq_SymExpr_true : forall a b, beq_SymExpr a b = true -> a = b.
+Lemma beq_SymExpr_correct : forall a b, beq_SymExpr a b = true -> a = b.
 Proof.
   intro a.
   induction a using SymExpr_ind'; intros;
@@ -186,13 +179,13 @@ Proof.
   split_andb;
   apply IHa1 in H2;
   apply IHa2 in H0;
-  apply beq_SymOp_true in H1; subst; auto.
+  apply beq_SymOp_correct in H1; subst; auto.
 
   (* case: Imm *)
-  apply beq_val_true in H; subst; auto.
+  apply beq_val_correct in H; subst; auto.
 
   (* case: Initial *)
-  apply beq_Loc_true in H; subst; auto. 
+  apply beq_Loc_correct in H; subst; auto. 
 
   (* case: Load *)
   split_andb.
@@ -207,7 +200,7 @@ Proof.
   assert (a1 = s). apply H. split_andb; assumption.
   rewrite H0; f_equal. apply IHle. apply H. split_andb. assumption.
 
-  apply beq_addrmode_true in H1.
+  apply beq_addrmode_correct in H1.
   f_equal; auto.
   case_eq (list_eq_dec addrmode_eq la l). intros. assumption.
   intros n contra; rewrite contra in H2. inversion H2.
@@ -331,7 +324,7 @@ Lemma validFlag__eq_or_undef : forall f s1 s2,
   lookup (CR f) (symReg s1) = symUndef.
 Proof.
   intros;
-  unfold validFlag in H; apply orb_prop in H; inversion H; apply beq_SymExpr_true in H0; auto.
+  unfold validFlag in H; apply orb_prop in H; inversion H; apply beq_SymExpr_correct in H0; auto.
 Qed.
  
 Lemma validFlags_symAllFlags_match : forall (s1 s2 : SymState),
@@ -392,14 +385,12 @@ Proof.
   intros;
   
   unfold peephole_validate in H;  rewrite H0 in H;  rewrite H1 in H; simpl in H;
-  apply andb_true_left in H; apply andb_true_left in H; assumption.
-
+    split_andb; assumption.
 
   intros. let h := fresh "H" in (assert (h := H); apply peephole_validate_length in h; inversion h as [L1 L2]; clear h L1).
 
-  unfold peephole_validate in H;  rewrite H0 in H;  rewrite H1 in H; simpl in H.
-  simpl in L2. rewrite L2 in H.
-  apply andb_true_left in H; apply andb_true_left in H; assumption.
+  unfold peephole_validate in H;  rewrite H0 in H;  rewrite H1 in H; simpl in H;
+  simpl in L2; rewrite L2 in H; split_andb; assumption.
 Qed.
 
 Theorem peephole_validate__symFlags_match : forall c d s1 s2,
