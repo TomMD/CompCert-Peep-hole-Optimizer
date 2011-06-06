@@ -15,6 +15,8 @@ Require Import Asm.
 Require Import Peephole.
 Require Import PeepholeLocations.
 
+Require Import Coq.Lists.List.
+
 (* lemma 1
 
 Let b be a block and c an instruction list starting with
@@ -37,6 +39,81 @@ let b1, b2 be two blocks and c1,c2, two instruction sequences starting
 with branching instructions. If V(b1,b2) = true and Σ|-(b1;c1),R,F,M
 ->* c1,R',F',M' then Σ |- (b2;c2), R, F, M ->* c2,R',F',M'
 
+*) 
+
+(** Utility lemmas and tactics -- 
+
+    the following lemmas and tactics are
+    just helpful bits to clean up the automation of further proofs in this
+    file.
+*)
+
+(* extract the left argument from a boolean and hypothesis *)
+Lemma andb_true_left : forall a b,
+  a && b = true -> a = true.
+Proof.
+  intros; symmetry in H; apply andb_true_eq in H;
+  inversion H; auto.
+Qed.
+
+(* extract the right argument from a boolean and hypothesis *)
+Lemma andb_true_right : forall a b,
+  a && b = true -> b = true.
+Proof.
+  intros; symmetry in H; apply andb_true_eq in H;
+  inversion H; auto.
+Qed. 
+
+
+(* tactics for manipulating boolean and hypotheses and extracting all
+the operands into separate hypotheses. *)
+ Ltac split_andb' H := 
+   let H0 := fresh "H" in assert (H0 := H); 
+     apply andb_true_left in H; apply
+       andb_true_right in H0.
+
+Ltac split_andb :=
+  repeat
+    match goal with
+      | [ H : _ && _ = true |- _ ] => split_andb' H
+    end. 
+
+(* we do lots of inversion of beq_SymExpr based hypotheses. For
+clarity, this tactic makes it explicit when we do this. *)
+Ltac invert_beq_SymExpr :=
+  match goal with
+    | [ H : beq_SymExpr _ _ = true |- _ ] => inversion H
+  end.
+
+(* lemmas about single steps in our symbolic execution *)
+Lemma symExec_first_instr : forall a c initS S,
+  symExec (a::c) initS = Some S ->
+  exists S', single_symExec a initS = Some S'.
+Proof.
+  intros.
+  simpl in H. destruct (single_symExec a initS).
+  exists s. reflexivity.
+  inversion H.
+Qed.
+
+Lemma symExec_step: forall a c initS S S', 
+      symExec (a::c) initS = Some S -> 
+      single_symExec a initS = Some S' ->
+      symExec c S' = Some S.
+Proof.
+  intros.
+  unfold symExec in H.
+  rewrite H0 in H. rewrite <- H. reflexivity.
+Qed.
+
+
+
+(** Decision Procedure Correctness Proofs --
+    
+    For all of our
+    boolean decision procedures, we would like to show that they are
+    correct -- if beq_* a b = true then a = b. These lemmas are useful
+    in the overall correctness proofs of peephole_validate 
 *)
 
 Lemma beq_SymOp_true : forall a b, beq_SymOp a b = true -> a = b.
@@ -98,35 +175,6 @@ Proof.
 Qed.
 
 
-Lemma andb_true_left : forall a b,
-  a && b = true -> a = true.
-Proof.
-  intros; symmetry in H; apply andb_true_eq in H;
-  inversion H; auto.
-Qed.
-
-Lemma andb_true_right : forall a b,
-  a && b = true -> b = true.
-Proof.
-  intros; symmetry in H; apply andb_true_eq in H;
-  inversion H; auto.
-Qed.
-
-Ltac split_andb' H := 
-  let H0 := fresh "H" in assert (H0 := H);
-  apply andb_true_left in H; 
-    apply andb_true_right in H0.
-
-Ltac split_andb :=
-  repeat
-    match goal with
-      | [ H : _ && _ = true |- _ ] => split_andb' H
-    end.
-
-Ltac invert_beq_SymExpr :=
-  match goal with
-    | [ H : beq_SymExpr _ _ = true |- _ ] => inversion H
-  end.
 
 Lemma beq_SymExpr_true : forall a b, beq_SymExpr a b = true -> a = b.
 Proof.
@@ -174,7 +222,8 @@ Proof.
   auto.
 Admitted.
 
-(** Symbolic States Match
+
+(** Symbolic States Match --
 
    Here we define a series of Inductive Propositions which define what
    it means for two symbolic states to be equivalent. This is
@@ -191,6 +240,55 @@ Inductive symFlags_match : crbit -> SymState -> SymState -> Prop :=
   forall f s1 s2,
     lookup (CR f) (symReg s1) = symUndef ->
     symFlags_match f s1 s2.
+
+Inductive symAllFlags_match : SymState -> SymState -> Prop :=
+| symAllFlags_match_intro:
+  forall s1 s2,
+    symFlags_match ZF s1 s2 ->
+    symFlags_match CF s1 s2 ->
+    symFlags_match PF s1 s2 ->
+    symFlags_match SOF s1 s2 ->
+    symAllFlags_match s1 s2.
+
+Inductive symAllRegs_match : SymState -> SymState -> Prop :=
+| symAllRegs_match_intro :
+  forall s1 s2,
+    forall l, (false = isCR l ->
+              lookup l (symReg s1) = lookup l (symReg s2)) ->
+    symAllRegs_match s1 s2.
+
+Inductive symMemory_match : SymState -> SymState -> Prop :=
+| symMemory_match_intro : 
+  forall s1 s2,
+    symMemory_match s1 s2.
+
+Inductive symStates_match : SymState -> SymState -> Prop :=
+| symStates_match_intro : 
+  forall s1 s2, 
+    symAllFlags_match s1 s2 ->
+    symAllRegs_match s1 s2 ->
+    symMemory_match s1 s2 ->
+    subset (constraints s1) (constraints s2) = true ->
+    symStates_match s1 s2. 
+
+
+(**  Lemmas and Theorems about Symbolic State Matches --
+   
+   The goal here is to build up to a general correctness proof of the
+   peephole_validate function. That proof should state that if
+   peepholve_validate accepts a piece of optimized code, then it
+   follow that the symbolic states after execution of the regular and
+   optimized code should match according to the symState_match
+   predicate.
+
+*) 
+
+
+(* First we have some lemmas showing the correctness of the various
+   helper functions that support peephole_validate. We show here that
+   each of these functions is correct relative to the specification of
+   symStates_match. These correctness proofs will be composed to
+   develop the overall correctness proof of peephole_validate. *)
 
 Lemma symFlags_match_cases :
   forall cr s1 s2,
@@ -212,43 +310,6 @@ Proof.
   apply symFlags_match_def ; assumption].
 Qed.
 
-
-Inductive symAllFlags_match : SymState -> SymState -> Prop :=
-| symAllFlags_match_intro:
-  forall s1 s2,
-    symFlags_match ZF s1 s2 ->
-    symFlags_match CF s1 s2 ->
-    symFlags_match PF s1 s2 ->
-    symFlags_match SOF s1 s2 ->
-    symAllFlags_match s1 s2.
-
-
-Inductive symAllRegs_match : SymState -> SymState -> Prop :=
-| symAllRegs_match_intro :
-  forall s1 s2,
-    forall l, (false = isCR l ->
-              lookup l (symReg s1) = lookup l (symReg s2)) ->
-    symAllRegs_match s1 s2.
-
-Inductive symMemory_match : SymState -> SymState -> Prop :=
-| symMemory_match_intro : 
-  forall s1 s2,
-    symMemory_match s1 s2.
-
-Inductive symStates_match : SymState -> SymState -> Prop :=
-| symStates_match_intro : 
-  forall s1 s2, 
-    symAllFlags_match s1 s2 ->
-    symAllRegs_match s1 s2 ->
-    symMemory_match s1 s2 ->
-    subset (constraints s1) (constraints s2) = true ->
-    symStates_match s1 s2.
-
-Require Import Coq.Lists.List.
-
-
-(* Some lemmas related to the above propositions *)
-
 Lemma validFlags__validFlag : forall f s1 s2,
   validFlags s1 s2 = true -> validFlag (Register (CR f)) s1 s2 = true.
 Proof.
@@ -263,7 +324,6 @@ Proof.
             rewrite andb_comm in H ];
   apply andb_true_left in H; assumption.
 Qed.
-  
   
 Lemma validFlag__eq_or_undef : forall f s1 s2,
   validFlag (Register (CR f)) s1 s2 = true -> 
@@ -304,29 +364,8 @@ Proof.
   repeat rewrite beq_SymExpr_same. repeat rewrite orb_true_r. reflexivity.
 Admitted.
 
-Lemma symExec_first_instr : forall a c initS S,
-  symExec (a::c) initS = Some S ->
-  exists S', single_symExec a initS = Some S'.
-Proof.
-intros.
-simpl in H. destruct (single_symExec a initS).
-exists s. reflexivity.
-inversion H.
-Qed.
 
-Lemma symExec_step: forall a c initS S S', 
-      symExec (a::c) initS = Some S -> 
-      single_symExec a initS = Some S' ->
-      symExec c S' = Some S.
-Proof.
-  intros.
-  unfold symExec in H.
-  rewrite H0 in H. rewrite <- H. reflexivity.
-Qed.
-
-
-
-
+(** Here we have lemmas and proofs about peephole_validate itself. *)
 Lemma peephole_validate_length : forall (c d : code),
   peephole_validate c d = true -> 
   (length c <> 0)%nat /\ Compare_dec.leb (length d)  (length c) = true.
@@ -342,7 +381,6 @@ Proof.
   intros. auto. 
   intro contra. rewrite contra in H. inversion H.
 Qed.  
-
 
 Lemma peephole_validate__validFlags : forall c d s1 s2,
   peephole_validate c d = true ->
@@ -364,7 +402,7 @@ Proof.
   apply andb_true_left in H; apply andb_true_left in H; assumption.
 Qed.
 
-Lemma peephole_validate__symFlags_match : forall c d s1 s2,
+Theorem peephole_validate__symFlags_match : forall c d s1 s2,
   peephole_validate c d = true ->
   symExec c initSymSt = Some s1 -> 
   symExec d initSymSt = Some s2 ->
@@ -374,9 +412,11 @@ Proof.
   eapply peephole_validate__validFlags.
   eassumption. assumption. assumption.
   apply validFlags_symAllFlags_match. assumption.
-Qed.
+Qed. 
 
-Lemma peephole_validate_correct : forall (c d : code) (s1 s2 : SymState),
+
+(** The overall correctness proof for peephole_validate. *)
+Theorem peephole_validate_correct : forall (c d : code) (s1 s2 : SymState),
   peephole_validate c d = true -> 
     symExec c initSymSt = Some s1 -> 
     symExec d initSymSt = Some s2 ->
