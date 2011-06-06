@@ -726,6 +726,20 @@ Fixpoint nonaliasedLookup (a : addrmode) (addrs : list addrmode)(syms : list Sym
     | _,_ => Load a addrs syms
   end.
 
+Lemma length_filter_lt_length_cons : forall (A : Type) (f : A -> bool) (xs : list A) (x : A),
+  lt (length (filter f xs)) (length (x :: xs)).
+Proof.
+  induction xs.
+  auto. intros. replace (length (x :: a :: xs)) with (length (a :: x :: xs)) by auto.
+  replace (length (a :: x :: xs)) with (Datatypes.S (length (x :: xs))) ; try (simpl ; omega).
+  case_eq (f a) ; intros.
+  replace (length (filter f (a :: xs))) with (Datatypes.S (length (filter f (xs)))).
+  apply lt_n_S. apply IHxs. simpl. rewrite H. reflexivity.
+
+  simpl.  rewrite H. Print lt_trans. apply lt_trans with (m := length (x::xs)).
+  apply IHxs. simpl. omega.
+Qed.
+
 Function normalizeMem (zipped : list (addrmode * SymExpr)) {measure length zipped}: (list (addrmode * SymExpr)) := 
     match zipped with
       | (a1,s1)::more =>
@@ -735,7 +749,8 @@ Function normalizeMem (zipped : list (addrmode * SymExpr)) {measure length zippe
     end.
 Proof.
   intros.
-Admitted.
+  apply length_filter_lt_length_cons.
+Qed.
 
 Fixpoint normalize (s : SymExpr) : SymExpr :=
   match s with
