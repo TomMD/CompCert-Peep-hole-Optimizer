@@ -748,8 +748,7 @@ Function normalizeMem (zipped : list (addrmode * SymExpr)) {measure length zippe
       | _ => nil
     end.
 Proof.
-  intros.
-  apply length_filter_lt_length_cons.
+  intros. apply length_filter_lt_length_cons.
 Qed.
 
 Fixpoint normalize (s : SymExpr) : SymExpr :=
@@ -797,8 +796,24 @@ Definition validMem (c : SymState) (d : SymState) : bool :=
   let (c',d') := (normalizeMem (store (symMem c)), normalizeMem (store (symMem d))) in
     beq_MemState c' d'.
 
-Definition validRegs (l : list preg) (c d : SymState) : bool := false.
-(* End stubs (I hope) *)
+Fixpoint validIRegs (c d : SymState) : bool :=
+  let ir i := Register (IR i) in
+    let check x := beq_SymExpr (normalize (c # (ir x))) (normalize (d # (ir x))) in
+   check EAX && check EBX && check ECX && check EDX && check ESI &&
+   check EDI && check EBP && check ESP.
+
+Fixpoint validFRegs (c d : SymState) : bool :=
+  let ir i := Register (FR i) in
+    let check x := beq_SymExpr (normalize (c # (ir x))) (normalize (d # (ir x))) in
+   check XMM0 && check XMM1 && check XMM2 && check XMM3 &&
+   check XMM4 && check XMM5 && check XMM6 && check XMM7.
+
+Fixpoint validRegs (l : list preg) (c d : SymState) : bool :=
+  let ir i := Register i in
+    let check x := beq_SymExpr (normalize (c # (ir x))) (normalize (d # (ir x))) in
+  check PC && check ST0 && check RA &&
+  validIRegs c d &&
+  validFRegs c d.
 
 Definition validFlag (f : Loc) (c : SymState) (d : SymState) : bool :=
   beq_SymExpr (c # f) symUndef || beq_SymExpr (c # f) (d # f).
