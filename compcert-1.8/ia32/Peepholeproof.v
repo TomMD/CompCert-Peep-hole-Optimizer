@@ -304,27 +304,27 @@ Proof.
   repeat rewrite beq_SymExpr_same. repeat rewrite orb_true_r. reflexivity.
 Admitted.
 
-Lemma peephole_validate__symFlags_match : forall c d initS1 initS2 s1 s2,
-  peephole_validate c d = true ->
-  symExec c initS1 = Some s1 -> 
-  symExec d initS2 = Some s2 ->
-  symAllFlags_match s1 s2.
+Lemma symExec_first_instr : forall a c initS S,
+  symExec (a::c) initS = Some S ->
+  exists S', single_symExec a initS = Some S'.
 Proof.
-  induction c; intros; destruct d. intros; simpl in H; inversion H.
-  intros; simpl in H; inversion H.
+intros.
+simpl in H. destruct (single_symExec a initS).
+exists s. reflexivity.
+inversion H.
+Qed.
 
-  Focus 2. let PV := fresh "H" in assert (PV := H). simpl in H.
-  simpl in H0. 
-(* possible lemmas needed here:
-
-  symExec_step: forall a c initS S, 
+Lemma symExec_step: forall a c initS S S', 
       symExec (a::c) initS = Some S -> 
-      symExec c (single_symExec a initS) = Some S
+      single_symExec a initS = Some S' ->
+      symExec c S' = Some S.
+Proof.
+  intros.
+  unfold symExec in H.
+  rewrite H0 in H. rewrite <- H. reflexivity.
+Qed.
 
-  peephole_validate_step : forall a i c d, peephole_validate (a::c) (i::d) = true ->
-      peephole_validate c d = true
-*)
-Admitted.  
+
 
 
 Lemma peephole_validate_length : forall (c d : code),
@@ -342,6 +342,39 @@ Proof.
   intros. auto. 
   intro contra. rewrite contra in H. inversion H.
 Qed.  
+
+
+Lemma peephole_validate__validFlags : forall c d s1 s2,
+  peephole_validate c d = true ->
+  symExec c initSymSt = Some s1 -> 
+  symExec d initSymSt = Some s2 ->
+  validFlags s1 s2 = true.
+Proof.  
+  induction c; destruct d. intros. inversion H. intros; inversion H.
+  intros;
+  
+  unfold peephole_validate in H;  rewrite H0 in H;  rewrite H1 in H; simpl in H;
+  apply andb_true_left in H; apply andb_true_left in H; assumption.
+
+
+  intros. let h := fresh "H" in (assert (h := H); apply peephole_validate_length in h; inversion h as [L1 L2]; clear h L1).
+
+  unfold peephole_validate in H;  rewrite H0 in H;  rewrite H1 in H; simpl in H.
+  simpl in L2. rewrite L2 in H.
+  apply andb_true_left in H; apply andb_true_left in H; assumption.
+Qed.
+
+Lemma peephole_validate__symFlags_match : forall c d s1 s2,
+  peephole_validate c d = true ->
+  symExec c initSymSt = Some s1 -> 
+  symExec d initSymSt = Some s2 ->
+  symAllFlags_match s1 s2.
+Proof.
+  intros. assert (validFlags s1 s2 = true).
+  eapply peephole_validate__validFlags.
+  eassumption. assumption. assumption.
+  apply validFlags_symAllFlags_match. assumption.
+Qed.
 
 Lemma peephole_validate_correct : forall (c d : code) (s1 s2 : SymState),
   peephole_validate c d = true -> 
