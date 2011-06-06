@@ -24,6 +24,29 @@ a branching instruction. If Σ |- (b; c), R, F, M →* c, R', F', M'
 and α(b) = (m, s), then Σ|- [[m]](R, F, M ) = (R', F', M') and
 Σ, (R, F, M ) |= s. *) 
 
+(*
+Inductive constraintSatisfied : Constraint -> regset -> mem -> Prop :=
+  | readConst  : forall c rs m,
+    c = ReadMem a -> memLoad Mint32 m a rs (IReg EAX) <> None -> constraintSatisfied c rs m
+  | writeConst : forall c rs m,
+    c = WriteMem a -> memStore Mint32 m a rs (IReg EAX) <> None -> constraintSatisfied c rs m
+  | divConst   : forall c rs m,
+    c = DivBy e -> .
+
+Inductive constraintsSatisfied : list Constraint -> regset -> mem -> Prop :=
+  | noConstraints : forall c rs m, nil = c -> constraintsSatisfied c rs m
+  | allSubConstraintsMatch : forall c rs m, 
+    forall x xs, x::xs = c -> constraintSatisfied x rs m -> constraintsSatisfied xs rs m ->
+      constraintsSatisfied c rs m.
+
+
+Lemma semantics_symExec_same_state : forall (c : code) (rs : regset) (m : mem) (st : SymState),
+  symExec c initSymSt  = Some (SymSt s' m' r') ->
+  exec_instrs c rs m  = Next r'' m'' ->
+  symMemEqSemMem m' m'' /\ symRegEqSemReg r' r''
+  /\
+  constraintsSatisfied s' rs m.
+  *)
 (* lemma 2
 
 Let b be a block and c an instruction list starting with a branching
@@ -167,7 +190,13 @@ Proof.
   rewrite H0 in H. inversion H.
 Qed.
 
-
+Lemma beq_addrchunk_correct : forall a b, beq_addrchunk a b = true -> a = b.
+Proof.
+  induction a.
+  intros. destruct b0.  unfold beq_addrchunk in H.
+  case_eq (addrchunk_eq (a, b) (m, a0)). intros. auto. 
+  intros. rewrite H0 in H. inversion H. 
+Qed.
 
 Lemma beq_SymExpr_correct : forall a b, beq_SymExpr a b = true -> a = b.
 Proof.
@@ -197,12 +226,12 @@ Proof.
   generalize dependent l0.
   induction le; intros. destruct l0. reflexivity. inversion H3.
   destruct l0. inversion H3.
-  assert (a1 = s). apply H. split_andb; assumption.
+  assert (a0 = s). apply H. split_andb; assumption.
   rewrite H0; f_equal. apply IHle. apply H. split_andb. assumption.
 
-  apply beq_addrmode_correct in H1.
+  apply beq_addrchunk_correct in H1.
   f_equal; auto.
-  case_eq (list_eq_dec addrmode_eq la l). intros. assumption.
+  case_eq (list_eq_dec addrchunk_eq la l). intros. assumption.
   intros n contra; rewrite contra in H2. inversion H2.
 Qed.
 
