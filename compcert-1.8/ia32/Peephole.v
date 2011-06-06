@@ -166,14 +166,14 @@ Definition beq_addrmode (a b : addrmode) : bool :=
   end.
 
 (* to decide equality of symbolic expressions, we need to decide equality of values *)
-Definition val_eq_dec : forall (v1 v2 : val), {v1 = v2} + {v1 <> v2}.
+Definition val_eq : forall (v1 v2 : val), {v1 = v2} + {v1 <> v2}.
 Proof.
   decide equality ; try apply Int.eq_dec.
   apply Float.eq_dec.  apply eq_block.
 Defined.
 
 Definition beq_val (a b : val) : bool :=
-  match val_eq_dec a b with
+  match val_eq a b with
     | left _ => true
     | right _ => false
   end.
@@ -204,25 +204,6 @@ Definition beq_SymOp (a b : SymOp) : bool :=
     | right _ => false
   end.
 
-(* decide equality for symbolic expressions. note this is *syntactic* equality
-Definition SymExpr_dec : forall (a b : SymExpr), {a = b} + {a <> b}.
-  let MemState_Eq := fix MemState_Eq (f1 f2 : MemState) :=
-    match f1,f2 as _ with
-      | nil,nil => left _
-      | nil,_   => right _
-      | _,nil   => right _
-      | (a1,e1)::xs, (a2,e2)::ys => SymExpr_dec e1 e2 /\ addrmode_eq a1 a2
-    end
-  in decide equality.
-Admitted.
-
-Definition beq_SymExpr (s1 s2 : SymExpr) : bool :=
-  match SymExpr_dec s1 s2 with
-  | left _ => true
-  | right _ => false
-  end.
-*)
-
 Fixpoint beq_SymExpr (s1 s2 : SymExpr) : bool :=
   let leq_SE := fix leq_SE (x1 x2 : list SymExpr) :=
     match x1, x2 with
@@ -246,12 +227,11 @@ Fixpoint beq_SymExpr (s1 s2 : SymExpr) : bool :=
       | _,_ => false
     end.
 
-(*
-Definition constraint_eq : forall (c1 c2 : Constraint), {c1 = c2} + {c1 <> c2}.
-Proof.
- decide equality. apply addrmode_eq. apply addrmode_eq. apply SymExpr_dec.
-Defined.
-*)
+Fixpoint beq_MemState (a b :  list (addrmode*SymExpr)) : bool :=
+  match a, b with
+    | (a1,s1)::xs, (a2,s2)::ys => beq_addrmode a1 a2 && beq_SymExpr s1 s2 && beq_MemState xs ys
+    | _,_ => true
+  end.
 
 Definition beq_constraint (a b : Constraint) : bool :=
   match a, b with
@@ -441,7 +421,23 @@ Definition single_symExec (i : instruction) (l : SymState) : option SymState :=
       None (* Some (l # (Register rd) <- (Val.floatofint rs#r1))) m *)
   (** Integer arithmetic *)
   | Plea rd a =>
-      (* FIXME!! not sure Imm eval_addrmode is right *)
+(*
+    match a with
+    | Addrmode base ofs const =>
+      symAdd (match base with
+                | None => Imm 0
+                | Some r => (l # (Register r))
+              end)
+             (match const with
+                inl ofs => Imm (Vint ofs)
+                inr(id,ofs) =>
+                    match Genv.find_symbol ge id with
+                      | Some b => ... ?
+                      | None   => None
+*) 
+     (* FIXME!! not sure Imm eval_addrmode is right *)
+      (* I'm pretty sure this isn't right, something like the above is a little closer
+         - we need to use our own SymExpr values not the 'Value' values for arith ops *)
     match eval_addrmode a l with
       | Some v => Some (l # (Register rd) <- v)
       | None => None
@@ -670,17 +666,6 @@ Notation "a '&&&' b" :=
       else Utils.in_right
     else Utils.in_right).
 
-(*
-Fixpoint allLocs_dec (l : list Loc) (a b : SymState) : bool :=
-  match l with
-    | nil => true
-    | l' :: ls => 
-      if SymExpr_dec (a # l') (b # l') 
-        then allLocs_dec ls a b
-        else false
-  end.
-*)
-
 Definition isCR (c : preg) : bool :=
   match c with
     | (CR _) => true
@@ -694,19 +679,63 @@ Fixpoint all {A : Type} (p : A -> bool) (xs : list A) : bool :=
   end.
 
 (* Begin Stubs! *)
-(* Test if 'a' is a subset of 'b' *)
-Fixpoint subset (a b : list Constraint) : bool :=
-  match a with
-    | nil => true
-    | (x::xs) => existsb (fun z => beq_constraint z x) b && subset xs b (* fixme direct eq isn't quite right *)
+
+(* The normalization of binOps determines what instruction weakening / replacement
+  is acceptable from the optimizer.
+
+  The normalization steps are:
+  - For effectless operations we just remove the layer (ex: and r1 0 == r1)
+  - mult r1 2 ==> add r1 r1
+  - shiftL r1 x ==> mult r1 (2^x)
+
+  FIXME Do I need to handle operations on pointer values (and not just Vint)?
+*)
+
+Fixpoint normalizeSymOp (o : SymOp) (e1 e2 : SymExpr) : SymExpr := 
+  let default := binOp o e1 e2 in
+  match o,e1,e2 with
+  | SymAnd,_,Imm (Vint  x) => if Int.eq x (Int.repr 0) then e1 else default
+  | SymMult,_,Imm (Vint x)   =>
+    if Int.eq x (Int.repr 1)
+      then e1
+      else if Int.eq x (Int.repr 2) then add e1 e1 else default
+(*  | SymShiftL,_,(Imm (Vint x)) => SymMult e1 (power 2 x) (* FIXME power of? *) *)
+  | SymSub,_,(Imm (Vint x))    => if Int.eq x (Int.repr 0) then e1 else default
+  | SymXor,_,(Imm (Vint x))    => if Int.eq x (Int.repr 0) then e1 else default
+  | _,_,_ => binOp o e1 e2
   end.
 
-Fixpoint normalizeSymOp (o : SymOp) (e1 e2 : SymExpr) : SymExpr := binOp o e1 e2.
+(* Does not alias returns true when it can prove two addresses
+   do not alias each other.  Always returning false is safe
+   but means we catch fewer optimization opportunities
+*)
+Definition doesNotAlias (a1 a2 : addrmode) := false.
 
-Definition nonaliasedLookup (a : addrmode) (addrs : list addrmode)(syms : list SymExpr) : SymExpr :=
-  Load a addrs syms.
+(* Try to normalize a lookup by replacing the expression with the stored value,
+   but ONLY IF it can be proven not to alias.
+*)
+Fixpoint nonaliasedLookup (a : addrmode) (addrs : list addrmode)(syms : list SymExpr) : SymExpr :=
+  match addrs,syms with
+    | a1::moreA,s1::moreS =>
+      if beq_addrmode a1 a
+        then s1
+        else
+          if doesNotAlias a1 a
+            then nonaliasedLookup a moreA moreS
+            else Load a addrs syms
+    | _,_ => Load a addrs syms
+  end.
 
-Fixpoint normalizeMem (addrs : list addrmode) (syms : list SymExpr) : (list addrmode * list SymExpr) := (addrs, syms).
+Function normalizeMem (zipped : list (addrmode * SymExpr)) {measure length zipped}: (list (addrmode * SymExpr)) := 
+    match zipped with
+      | (a1,s1)::more =>
+        let filterOp x := if beq_addrmode (fst x) a1 then false else true in
+        (a1,s1) :: normalizeMem (filter filterOp more)
+      | _ => nil
+    end.
+Proof.
+  intros.
+Admitted.
 
 Fixpoint normalize (s : SymExpr) : SymExpr :=
   match s with
@@ -730,11 +759,28 @@ Fixpoint normalize (s : SymExpr) : SymExpr :=
         end
     | Imm v => Imm v
     | Initial l => Initial l
-    | Load a addrs syms => let (addrs', syms') := normalizeMem addrs syms
+    | Load a addrs syms => let (addrs', syms') := split (normalizeMem (combine addrs syms))
       in nonaliasedLookup a addrs' syms'
   end.
 
-Definition validMem (c : SymState) (d : SymState) : bool := false.
+Definition normalizeConstraint (c : Constraint) : Constraint :=
+  match c with
+    | DivBy se => DivBy (normalize se)
+    | _ => c
+  end.
+
+(* Test if 'a' is a subset of 'b' *)
+Fixpoint subset (a b : list Constraint) : bool :=
+  match a with
+    | nil => true
+    | (x::xs) => 
+      let elemCheck := (fun z => beq_constraint (normalizeConstraint z) (normalizeConstraint x)) in
+        existsb elemCheck b && subset xs b
+  end.
+
+Definition validMem (c : SymState) (d : SymState) : bool := 
+  let (c',d') := (normalizeMem (store (symMem c)), normalizeMem (store (symMem d))) in
+    beq_MemState c' d'.
 
 Definition validRegs (l : list preg) (c d : SymState) : bool := false.
 (* End stubs (I hope) *)
@@ -750,6 +796,9 @@ Definition validFlags (c : SymState) (d : SymState) : bool :=
   validFlag (Register (CR CF)) c d && 
   validFlag (Register (CR SOF)) c d.
 
+Definition validConstraints (c : SymState) (d : SymState) : bool :=
+  subset (constraints c) (constraints d).
+
 Definition sameSymbolicExecution (c : option SymState) (d : option SymState) : bool :=
   match c, d with
     | Some c', Some d' =>
@@ -757,7 +806,8 @@ Definition sameSymbolicExecution (c : option SymState) (d : option SymState) : b
         let regD := filter (fun x => negb (isCR x)) (elements (symReg d')) in
           validFlags c' d' &&
           validRegs  (regC ++ regD) c' d' &&
-          validMem c' d'
+          validMem c' d' && 
+          validConstraints c' d'
     | _, _ => false
   end.
 
