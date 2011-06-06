@@ -325,23 +325,6 @@ Proof.
 Qed.
 
 
-Lemma peephole_validate__symFlags_match : forall c d initS1 initS2 s1 s2,
-  peephole_validate c d = true ->
-  symExec c initS1 = Some s1 -> 
-  symExec d initS2 = Some s2 ->
-  symAllFlags_match s1 s2.
-Proof.
-  induction c; intros; destruct d. intros; simpl in H; inversion H.
-
-  constructor.
-  intros; simpl in H; inversion H.
-
-
-  (* the induction hypothesis is wrong here... nothing says that if
-  peephole_validate (a::c) (i::d) = true that we can step to
-  peephole_validate c d = true... *)
-
-Admitted.  
 
 
 Lemma peephole_validate_length : forall (c d : code),
@@ -359,6 +342,39 @@ Proof.
   intros. auto. 
   intro contra. rewrite contra in H. inversion H.
 Qed.  
+
+
+Lemma peephole_validate__validFlags : forall c d s1 s2,
+  peephole_validate c d = true ->
+  symExec c initSymSt = Some s1 -> 
+  symExec d initSymSt = Some s2 ->
+  validFlags s1 s2 = true.
+Proof.  
+  induction c; destruct d. intros. inversion H. intros; inversion H.
+  intros;
+  
+  unfold peephole_validate in H;  rewrite H0 in H;  rewrite H1 in H; simpl in H;
+  apply andb_true_left in H; apply andb_true_left in H; assumption.
+
+
+  intros. let h := fresh "H" in (assert (h := H); apply peephole_validate_length in h; inversion h as [L1 L2]; clear h L1).
+
+  unfold peephole_validate in H;  rewrite H0 in H;  rewrite H1 in H; simpl in H.
+  simpl in L2. rewrite L2 in H.
+  apply andb_true_left in H; apply andb_true_left in H; assumption.
+Qed.
+
+Lemma peephole_validate__symFlags_match : forall c d s1 s2,
+  peephole_validate c d = true ->
+  symExec c initSymSt = Some s1 -> 
+  symExec d initSymSt = Some s2 ->
+  symAllFlags_match s1 s2.
+Proof.
+  intros. assert (validFlags s1 s2 = true).
+  eapply peephole_validate__validFlags.
+  eassumption. assumption. assumption.
+  apply validFlags_symAllFlags_match. assumption.
+Qed.
 
 Lemma peephole_validate_correct : forall (c d : code) (s1 s2 : SymState),
   peephole_validate c d = true -> 
