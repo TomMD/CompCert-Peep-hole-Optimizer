@@ -42,13 +42,12 @@ let loadLoad (is : instruction list) : instruction list =
 let rec skipReadsDropLoadsTo (rX : ireg) (mX : addrmode) (ts : instruction list) : instruction list =
   let rec op is = 
     match is with
-     | Pmov_rm (r1, m1) :: rest when beq_ireg r1 rX && beq_addrmode m1 mX
-          ->
-	 Pnop :: op rest
+     | Pmov_rm (r1, m1) :: rest when beq_ireg r1 rX && beq_addrmode m1 mX ->
+          Pnop :: op rest
      | Pmov_rm (r1, m1) :: rest when negb (beq_ireg r1 rX) ->
 	  Pmov_rm (r1, m1) :: op rest
      | Pmov_rm (r1, m1) :: rest when beq_ireg r1 rX && negb (beq_addrmode m1 mX) ->
-           is
+          is
      | Pmov_mr (_, _) :: rest -> is
      | x::xs -> x::op xs (* This isn't always right, any instruction that
                             stores in a possibly aliased manner should stop us *)
@@ -97,3 +96,11 @@ let rec ml_optimize_loop f n =
 let ml_optimize f =
   let g = ml_optimize_loop f 500 in
          g
+
+let peephole_failed c d =
+  print_string "THE PEEPHOLE OPTIMIZER MADE AN INCORRECT OPTIMIZATION ERROR ERROR ERROR\n";
+  print_string "----- preoptimized code -----\n";
+  print_function_debug stdout c;
+  print_string "----- postoptimized code -----\n";
+  print_function_debug stdout d;
+  print_string "DANGER WILL ROBINSON, DANGER! THESE ARE NOT THE OPTIMIZATIONS YOU'RE LOOKING FOR!\n"

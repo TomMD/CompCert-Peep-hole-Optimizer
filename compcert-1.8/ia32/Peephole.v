@@ -877,6 +877,7 @@ Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) : bool :=
     else false.
 
 Parameter ml_optimize : Asm.code -> Asm.code.
+Parameter peephole_failed : Asm.code -> Asm.code -> unit.
 
 (** Peephole optimization of function level lists of assembly code. We
   feed the optimizer sliding windows of up to 4 instructions and then
@@ -886,7 +887,7 @@ Definition opt_window (c : Asm.code) :=
   let c' := ml_optimize c
   in if peephole_validate c c'
       then c'
-      else c.
+      else let _ := peephole_failed c c' in c.
 
 Lemma skipn_single_S (A : Type) : forall (a : A) l n,
   ((length (skipn (Datatypes.S n) (a::l))) = (length (skipn n l))).

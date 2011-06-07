@@ -4,10 +4,10 @@
 mult4:
 	subl	$12, %esp
 	leal	16(%esp), %edx
-	movl	%edx, 0(%esp)	
-	movl	0(%esp), %edx	# LOAD / STORE !
+	movl	%edx, 0(%esp)
+	movl	0(%esp), %edx
 	movl	0(%edx), %eax
-	leal	0(,%eax,4), %eax  # STRENGTH REDUCTION
+	leal	0(,%eax,4), %eax
 	addl	$12, %esp
 	ret
 	.type	mult4, @function
@@ -39,3 +39,24 @@ mult1:
 	ret
 	.type	mult1, @function
 	.size	mult1, . - mult1
+	.text
+	.align	16
+	.globl main
+main:
+	subl	$20, %esp
+	leal	24(%esp), %edx
+	movl	%edx, 4(%esp)
+	movl	$13, %eax
+	movl	%eax, 0(%esp)
+	call	mult4
+	movl	$13, %eax
+	movl	%eax, 0(%esp)
+	call	mult2
+	movl	$13, %eax
+	movl	%eax, 0(%esp)
+	call	mult1
+	xorl	%eax, %eax
+	addl	$20, %esp
+	ret
+	.type	main, @function
+	.size	main, . - main

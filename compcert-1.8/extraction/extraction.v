@@ -73,6 +73,7 @@ Extract Constant Coloring.graph_coloring => "Coloringaux.graph_coloring".
 
 (* ia32 Peephole optimizer *)
 Extract Constant Peephole.ml_optimize => "Peepholeaux.ml_optimize".
+Extract Constant Peephole.peephole_failed => "Peepholeaux.peephole_failed".
 
 (* Linearize *)
 Extract Constant Linearize.enumerate_aux => "Linearizeaux.enumerate_aux".
