@@ -274,9 +274,9 @@ Inductive symAllFlags_match : SymState -> SymState -> Prop :=
 
 Inductive symAllRegs_match : SymState -> SymState -> Prop :=
 | symAllRegs_match_intro :
-  forall s1 s2,
-    forall l, (false = isCR l ->
-              lookup l (symReg s1) = lookup l (symReg s2)) ->
+  forall s1 s2, 
+    (forall l, false = isCR l ->
+      normalize (lookup l (symReg s1)) = normalize (lookup l (symReg s2))) ->
     symAllRegs_match s1 s2.
 
 Inductive symMemory_match : SymState -> SymState -> Prop :=
@@ -434,6 +434,91 @@ Proof.
   apply validFlags_symAllFlags_match. assumption.
 Qed. 
 
+Lemma validRegs__symAllRegs_match_pre : forall s1 s2,
+  validRegs s1 s2 = true -> 
+   (forall l, false = isCR l ->
+    normalize (lookup l (symReg s1)) = normalize (lookup l (symReg s2))).
+Proof.
+  intros s1 s2;
+    destruct s1; destruct s2; 
+      intro H; simpl in H; split_andb;
+      intros REG notCR; 
+          apply beq_SymExpr_correct; simpl;
+            induction REG; intros; try assumption; 
+        (* integer registers *)
+        try (induction i; assumption); 
+        (* float registers *)
+          try (induction f; assumption);
+        (* flags... *)
+        inversion notCR.
+Qed.
+
+Lemma peephole_validate__validRegs:  forall c d s1 s2,
+  peephole_validate c d = true ->
+  symExec c initSymSt = Some s1 -> 
+  symExec d initSymSt = Some s2 ->
+  validRegs s1 s2 = true.
+Proof.
+  induction c; destruct d; intros; try (inversion H; fail); [
+  unfold peephole_validate in H; rewrite H0 in H; rewrite H1 in H; simpl in H;
+  split_andb; assumption |
+
+  let h := fresh "H" in 
+    (assert (h := H); 
+      apply peephole_validate_length in h; 
+        inversion h as [L1 L2]; 
+          clear h L1);
+
+  unfold peephole_validate in H; 
+    rewrite H0 in H; rewrite H1 in H; 
+      simpl in H; simpl in L2; rewrite L2 in H; split_andb; assumption ].
+Qed.
+  
+Theorem peephole_validate__symRegs_match : forall c d s1 s2,
+  peephole_validate c d = true ->
+  symExec c initSymSt = Some s1 -> 
+  symExec d initSymSt = Some s2 ->
+  symAllRegs_match s1 s2.
+Proof.
+  intros;
+
+  assert (PRE : forall l, false = isCR l ->
+    normalize (lookup l (symReg s1)) = normalize (lookup l (symReg s2))) by
+  (apply (peephole_validate__validRegs c d s1 s2) in H;
+    try (apply validRegs__symAllRegs_match_pre; assumption; fail); try assumption);
+   eapply (symAllRegs_match_intro s1 s2); apply PRE.
+Qed.
+
+Theorem peephole_validate__symMemory_match : forall c d s1 s2,
+  peephole_validate c d = true ->
+  symExec c initSymSt = Some s1 -> 
+  symExec d initSymSt = Some s2 ->
+  symMemory_match s1 s2.
+Proof.
+Admitted.
+
+Theorem peephole_validate__subset_constraints : forall c d s1 s2,
+  peephole_validate c d = true ->
+  symExec c initSymSt = Some s1 -> 
+  symExec d initSymSt = Some s2 ->
+  subset (constraints s1)(constraints s2) = true.
+Proof.
+  destruct c; destruct d; intros;
+  try (unfold peephole_validate in H; simpl in H; inversion H; fail).
+
+  unfold peephole_validate in H; rewrite H0 in H; rewrite H1 in H;
+  simpl in H; split_andb; unfold validConstraints in *; assumption.
+    
+  let h := fresh "H" in 
+    (assert (h := H); 
+      apply peephole_validate_length in h; 
+        inversion h as [L1 L2]; 
+          clear h L1); simpl in L2;
+  unfold peephole_validate in H; rewrite H0 in H; rewrite H1 in H;
+  simpl in H; rewrite L2 in H; split_andb; unfold validConstraints in *; assumption.
+
+Qed.
+  
 
 (** The overall correctness proof for peephole_validate. *)
 Theorem peephole_validate_correct : forall (c d : code) (s1 s2 : SymState),
@@ -442,26 +527,14 @@ Theorem peephole_validate_correct : forall (c d : code) (s1 s2 : SymState),
     symExec d initSymSt = Some s2 ->
     symStates_match s1 s2.
 Proof.
-  destruct c.
-  intros. inversion H.
-  destruct d.
-  intros. simpl in H. unfold sameSymbolicExecution in H.
-  destruct (single_symExec i initSymSt).
-  unfold peephole_validate in H.
-  simpl in H.
-Admitted.
-(*
-  rewrite H0 in H. simpl in H.
-  
-  match goal with
-    | [ _ : (if ?B then _ else _) = _ |- _ ] => destruct B
-  end.
-  inversion H.
+  intros.
+  constructor.
+  apply (peephole_validate__symFlags_match c d); auto.
+  apply (peephole_validate__symRegs_match c d); auto.
+  apply (peephole_validate__symMemory_match c d); auto.
+  apply (peephole_validate__subset_constraints c d); auto.
+Qed.
 
-  assert (Compare_dec.leb (@length instruction nil) (length (i::c)) = true) by
-    (apply peephole_validate_length in H; inversion H; auto).
-  
-*)
 Section PRESERVATION.
 
 Variable prog: Asm.program.
