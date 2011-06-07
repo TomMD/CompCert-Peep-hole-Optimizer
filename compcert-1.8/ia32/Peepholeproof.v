@@ -178,16 +178,13 @@ Qed.
 
 Lemma beq_addrmode_correct : forall a b, beq_addrmode a b = true -> a = b.
 Proof.
-  intros.
-  generalize dependent b.
-  induction a ; intros.
-  destruct b.
-  unfold beq_addrmode in H.
+  induction a ; intros;
+  destruct b;
+  unfold beq_addrmode in H;
   match goal with
     | [ H : (if addrmode_eq ?l ?r then _ else _) = _ |- _] => case_eq (addrmode_eq l r) ; intros
-  end.
-  auto.
-  rewrite H0 in H. inversion H.
+  end; auto;
+  rewrite H0 in H; inversion H.
 Qed.
 
 Lemma beq_addrchunk_correct : forall a b, beq_addrchunk a b = true -> a = b.
@@ -244,6 +241,24 @@ Proof.
   auto.
 Admitted.
 
+(* This lemma is probably too strong... we might want some kind of
+inductive relation on memory states instead *)
+Lemma beq_MemState_correct : forall a b, 
+  beq_MemState a b = true -> a = b.
+Proof.
+  induction a. destruct b. reflexivity. intro H. simpl in H. inversion H.
+
+  
+  destruct b. simpl. intro H; destruct a in H; inversion H.
+  intro.
+  simpl in H. destruct a. destruct p. 
+  
+
+
+  split_andb. apply beq_addrchunk_correct in H.
+  apply beq_SymExpr_correct in H1.
+  subst. f_equal. apply IHa; auto.
+Qed.
 
 (** Symbolic States Match --
 
@@ -282,6 +297,7 @@ Inductive symAllRegs_match : SymState -> SymState -> Prop :=
 Inductive symMemory_match : SymState -> SymState -> Prop :=
 | symMemory_match_intro : 
   forall s1 s2,
+    normalizeMem (store (symMem s1)) = normalizeMem (store (symMem s2)) -> 
     symMemory_match s1 s2.
 
 Inductive symStates_match : SymState -> SymState -> Prop :=
@@ -489,13 +505,28 @@ Proof.
    eapply (symAllRegs_match_intro s1 s2); apply PRE.
 Qed.
 
+
 Theorem peephole_validate__symMemory_match : forall c d s1 s2,
   peephole_validate c d = true ->
   symExec c initSymSt = Some s1 -> 
   symExec d initSymSt = Some s2 ->
   symMemory_match s1 s2.
 Proof.
-Admitted.
+  destruct c; destruct d; intros;
+  try (unfold peephole_validate in H; simpl in H; inversion H; fail).
+  unfold peephole_validate in H; rewrite H0 in H; rewrite H1 in H;
+    simpl in H; split_andb. unfold validMem in H3. apply beq_MemState_correct in H3.
+    constructor. assumption.
+
+  let h := fresh "H" in 
+    (assert (h := H); 
+      apply peephole_validate_length in h; 
+        inversion h as [L1 L2]; 
+          clear h L1); simpl in L2;
+  unfold peephole_validate in H; rewrite H0 in H; rewrite H1 in H;
+    simpl in H; rewrite L2 in H;  split_andb. 
+  unfold validMem in H3; apply beq_MemState_correct in H3; constructor; assumption.
+Qed.
 
 Theorem peephole_validate__subset_constraints : forall c d s1 s2,
   peephole_validate c d = true ->

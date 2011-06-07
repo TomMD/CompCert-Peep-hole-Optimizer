@@ -250,8 +250,9 @@ Fixpoint beq_SymExpr (s1 s2 : SymExpr) : bool :=
 
 Fixpoint beq_MemState (a b :  list (addrchunk*SymExpr)) : bool :=
   match a, b with
+    | nil, nil => true
     | (a1,s1)::xs, (a2,s2)::ys => beq_addrchunk a1 a2 && beq_SymExpr s1 s2 && beq_MemState xs ys
-    | _,_ => true
+    | _,_ => false
   end.
 
 Definition beq_constraint (a b : Constraint) : bool :=
