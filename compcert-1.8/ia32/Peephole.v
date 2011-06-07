@@ -831,7 +831,7 @@ Fixpoint validFRegs (c d : SymState) : bool :=
    check XMM0 && check XMM1 && check XMM2 && check XMM3 &&
    check XMM4 && check XMM5 && check XMM6 && check XMM7.
 
-Fixpoint validRegs (l : list preg) (c d : SymState) : bool :=
+Fixpoint validRegs (c d : SymState) : bool :=
   let ir i := Register i in
     let check x := beq_SymExpr (normalize (c # (ir x))) (normalize (d # (ir x))) in
   check PC && check ST0 && check RA &&
@@ -855,10 +855,8 @@ Definition validConstraints (c : SymState) (d : SymState) : bool :=
 Definition sameSymbolicExecution (c : option SymState) (d : option SymState) : bool :=
   match c, d with
     | Some c', Some d' =>
-      let regC := filter (fun x => negb (isCR x)) (elements (symReg c')) in
-        let regD := filter (fun x => negb (isCR x)) (elements (symReg d')) in
           validFlags c' d' &&
-          validRegs  (regC ++ regD) c' d' &&
+          validRegs c' d' &&
           validMem c' d' && 
           validConstraints c' d'
     | _, _ => false
