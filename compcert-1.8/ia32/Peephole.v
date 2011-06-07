@@ -329,14 +329,6 @@ Definition initMem : mems := initLocStore addrchunk_eq (compose Initial Memory).
 Definition initReg : regs := initLocStore preg_eq (compose Initial Register).
 Definition initSymSt : SymState := SymSt nil initMem initReg.
 
-(*
-Fixpoint unzip {A B : Type} (ps : list (A*B)) : (list A * list B) :=
-  match ps with
-    | nil => (nil, nil)
-    | (a, b) :: ps' => let (as',bs') := unzip ps' in (a :: as', b :: bs')
-  end.
-*)
-
 Notation "a # b" :=
   match b with
   | Register p  => (lookup p (symReg a))
@@ -444,23 +436,7 @@ Definition single_symExec (i : instruction) (l : SymState) : option SymState :=
       None (* Some (l # (Register rd) <- (Val.floatofint rs#r1))) m *)
   (** Integer arithmetic *)
   | Plea rd a =>
-(*
-    match a with
-    | Addrmode base ofs const =>
-      symAdd (match base with
-                | None => Imm 0
-                | Some r => (l # (Register r))
-              end)
-             (match const with
-                inl ofs => Imm (Vint ofs)
-                inr(id,ofs) =>
-                    match Genv.find_symbol ge id with
-                      | Some b => ... ?
-                      | None   => None
-*) 
      (* FIXME!! not sure Imm eval_addrmode is right *)
-      (* I'm pretty sure this isn't right, something like the above is a little closer
-         - we need to use our own SymExpr values not the 'Value' values for arith ops *)
     match eval_addrmode a l with
       | Some v => Some (l # (Register rd) <- v)
       | None => None
@@ -728,7 +704,7 @@ Fixpoint normalizeSymOp (o : SymOp) (e1 e2 : SymExpr) : SymExpr :=
   | _,_,_ => binOp o e1 e2
   end.
 
-(* Does not alias returns true when it can prove two addresses
+(* doesNoAlias returns true when it can prove two addresses
    do not alias each other.  Always returning false is safe
    but means we catch fewer optimization opportunities
 *)
@@ -767,7 +743,7 @@ Function normalizeMem (zipped : list (addrchunk * SymExpr)) {measure length zipp
     match zipped with
       | (a1,s1)::more =>
         let filterOp x := if beq_addrchunk (fst x) a1 then false else true in
-        (a1,s1) :: normalizeMem (filter filterOp more)
+        (a1,s1) :: normalizeMem (filter filterOp more)  (* FIXME we want to normalize s1 here *)
       | _ => nil
     end.
 Proof.
@@ -882,10 +858,10 @@ Parameter peephole_failed : Asm.code -> Asm.code -> unit.
   validate the results returned. If the results are valid, they are
   used, otherwise, they are discarded. **)
 Definition opt_window (c : Asm.code) :=
-  let c' := ml_optimize c
-  in if peephole_validate c c'
-      then c'
-      else let _ := peephole_failed c c' in c.
+  let d := ml_optimize c
+  in if peephole_validate c d
+      then d
+      else let _ := peephole_failed c d in c.
 
 Lemma skipn_single_S (A : Type) : forall (a : A) l n,
   ((length (skipn (Datatypes.S n) (a::l))) = (length (skipn n l))).

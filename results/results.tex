@@ -1,0 +1,99 @@
+\documentclass{article}
+
+\title{Project Results: Validated Peephole Optimization for CompCert's x86 Backend}
+\author{Andrew Sackville-West, Thomas M. DuBuisson}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+Compcert's x86 back-end is known to produce inefficient code, even
+when compared to ARM and PPC code produced from the same source code.
+Informal observation suggests there is opportunity for performance
+improvement using an architecture specific peephole optimization.
+
+\section{Method}
+
+In a similar vein to work by Tristian and Leroy's Translation
+Validators, we have an initial implementation of a ML peephole
+optimizer, a Gallina validator performing symbolic execution to
+compare pre- and post-optimized code, a parent ``optimize'' routine to
+traverse the instructions, and proofs of the validator's correctness.
+Below we address each of these components individually.
+
+\section{Symbolic-Execution Based Validator}
+
+The validator accepts the pre- and post-optimized code as arguments.
+It then symbolicly executes each of the pieces of code and compares
+the result.  Our current design is to obtain three pieces of data from
+symbolic execution: a mapping of locations (registers, memory) to
+values (symbolic expressions), a set of all observed locations, and a
+set of ``constraints'' (operations that might produce side effects not
+captured by our symbolic expressions, such as dividing by zero).
+
+\section{Wrapping It All Together: Optimize!}
+The optimize function accepts a basic block and divides it into
+smaller blocks, breaking the list of instructions at each instruction
+that is not recognized by our symbolic execution.  For each of these
+``executable blocks'', we optimize the code and validate the result
+has the same execution as the original instructions.  If the
+validation ever fails, the optimized block is discarded in favor of
+the original.
+
+\section{Proof of Correctness of the Validator}
+
+\section{ML Peephole Optimizer}
+The actual peephole optimization contains load/store and removal of
+redundant loads ({\tt load reg mem; \{op;\}* load reg mem;}
+\rightarrow {\tt load reg mem; \{op;\}*}) optimizations.  The Gallina
+code provides the optimizer with the largest possible block that can
+be symbolicly executed, the optimizer is in charge of extracting
+suitable windows for the operation of individual optimization rules.
+
+\section{Dark Corners}
+\subsection{Aspects of Symbolic Execution}
+\paragraph{Limited Normalization: }The validator's normalization
+process translates all symbolic expressions into a normal form,
+allowing direct comparison of expressions from differint executions.
+Unfortunately, there exists a (unimplemented) need for mutual recursion
+between the normalization of expressions and the normalization of expressions
+stored in memory (the state of memory is often captured as a component of
+symbolic expressions).
+The result of this being unimplemented is two executions that are semantically
+the same but symbolically different (ex: {\tt mult x 2} vs {\tt add x x})
+will only be properly normalized and accepted if the non-normalized
+value was kept in the registers and never {\it spilled} into memory.
+
+Finally, there is no alias analysis used when normalizing loads into the
+stored expressions.
+
+\paragraph{Shortcomings: }
+Certain instructions, particularly those working on data
+smaller than 32 bits, have no symbolic execution.
+
+\subsection{Status of proofs: }
+FIXME
+
+\section{False Starts}
+\paragraph{Direct addition to the x86 ASM stage: }
+The first attempt was to add peephole optimization directly to the ASM
+stage in CompCert.  After much wrestling with existing proofs, which
+broke sometimes only incidentally due to the peephole optimizer, we
+decided to instead add this work as a new final stage to the CompCert
+pipeline.  As a result there were minor, high level, additions in
+Compiler.v to both add the optimization pass and apply an (admitted)
+theorem for the end-to-end proof.
+
+\paragraph{Avoidance of Alias Analysis: }
+Our canonical optimizations were instruction weakening and removing
+redundant loads, neither of which require alias analysis.  For a time
+we believed such analysis was not needed for a first stab.  Due to
+pseudo instructions there were zero redundant loads visiable to the
+peephole optimizer, forcing us to reconsider our intended showcase
+optimization.
+
+\section{Conclusion}
+
+
+\end{document}

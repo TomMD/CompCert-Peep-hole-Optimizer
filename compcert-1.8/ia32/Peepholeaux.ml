@@ -97,10 +97,11 @@ let ml_optimize f =
   let g = ml_optimize_loop f 500 in
          g
 
-let peephole_failed c d =
+let peephole_failed (c : instruction list) (d : instruction list) : unit =
   print_string "THE PEEPHOLE OPTIMIZER MADE AN INCORRECT OPTIMIZATION ERROR ERROR ERROR\n";
   print_string "----- preoptimized code -----\n";
   print_function_debug stdout c;
   print_string "----- postoptimized code -----\n";
   print_function_debug stdout d;
-  print_string "DANGER WILL ROBINSON, DANGER! THESE ARE NOT THE OPTIMIZATIONS YOU'RE LOOKING FOR!\n"
+  print_string "DANGER WILL ROBINSON, DANGER! THESE ARE NOT THE OPTIMIZATIONS YOU'RE LOOKING FOR!\n";
+  false
