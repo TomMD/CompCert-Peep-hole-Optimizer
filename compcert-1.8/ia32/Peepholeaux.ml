@@ -39,41 +39,43 @@ let loadLoad (is : instruction list) : instruction list =
       Pnop :: Pmov_rr (r2, rs) :: xs
   | _ -> is
 
-(* currently, this code optimizes a specific pattern we see, but could
-   be made more general. The pattern is:
-
-        ...
-	movl	%edx, 4(%esp)
-	movl	%ebx, 0(%edx)
-	movl	%edx, 4(%esp)
-        ...
-
-   note that I've manually fixed the above to look like the usual
-   intel syntax. the actual output from the optimizer is in at&t
-   syntax... just in case it wasn't confusing enough... 
-
-   also note that this particular example is exactly the case where we
-   need to make sure the second load to edx is remove, not the first
-   one...  *)
+let rec skipReadsDropLoadsTo (rX : ireg) (mX : addrmode) (ts : instruction list) : instruction list =
+  let rec op is = 
+    match is with
+     | Pmov_rm (r1, m1) :: rest when beq_ireg r1 rX && beq_addrmode m1 mX
+          ->
+	 Pnop :: op rest
+     | Pmov_rm (r1, m1) :: rest when negb (beq_ireg r1 rX) ->
+	  Pmov_rm (r1, m1) :: op rest
+     | Pmov_rm (r1, m1) :: rest when beq_ireg r1 rX && negb (beq_addrmode m1 mX) ->
+           is
+     | Pmov_mr (_, _) :: rest -> is
+     | x::xs -> x::op xs (* This isn't always right, any instruction that
+                            stores in a possibly aliased manner should stop us *)
+     | []    -> []
+   in op ts
 
 let loadSkipLoad (is : instruction list) : instruction list =
   match is with
-  | Pmov_rm (r1, m1) :: Pmov_rm (r2, m2) :: Pmov_rm (r3, m3) :: xs
-    when beq_ireg r1 r3 && beq_addrmode m1 m3 ->
-      Pmov_rm (r1, m1) :: Pmov_rm (r2, m2) :: Pnop :: xs
-   | _ -> is
+  | Pmov_rm (r1, m1) :: rest -> Pmov_rm (r1,m1) :: skipReadsDropLoadsTo r1 m1 rest
+  | _ -> is
 
 (* All optimizations that use a window of 2 adjacent instructions can go here *)
 let window2Opts : (instruction list -> instruction list) list = 
   [loadStore; loadLoad]
 
 let window3Opts : (instruction list -> instruction list) list =
+   []
+
+(* Optimizations that can operate on arbitrary window sizes *)
+let windowNOpts : (instruction list -> instruction list) list =
    [loadSkipLoad]
 
 (* This is a list of all optimizations, they will be applied once per pass *)
 let optimizations : (instruction list -> instruction list) list =
   concat [map (windowNPeephole 2) window2Opts;
-   map (windowNPeephole 3) window3Opts
+          map (windowNPeephole 3) window3Opts;
+          map (fun o is -> windowNPeephole (length is) o is) windowNOpts
          ]
 
 (* A single pass applies all our optimizations (in no particular order) once *)
@@ -81,16 +83,17 @@ let singlePass : instruction list -> instruction list =
   fold_left compose (fun x -> x) optimizations
 
 
+let rec allSame g f =
+  match (g,f) with
+  | ([], [])  -> true
+  | ([], _)   -> false
+  | (_, [])   -> false
+  | (x::xs, y::ys) -> beq_instr x y && allSame xs ys
+
 let rec ml_optimize_loop f n =
   let g = singlePass f in
-    if n == 0 then g else ml_optimize_loop g (n-1)
+    if n == 0 || allSame g f then g else ml_optimize_loop g (n-1)
 
 let ml_optimize f =
-  print_string "Optimizing...\n" ;
   let g = ml_optimize_loop f 500 in
-         print_string "PREOPTIMIZE:\n";
-         print_function_debug stdout f;
-         print_string "\n";
-         print_string "POST:\n";
-         print_function_debug stdout g;
          g
