@@ -17,51 +17,6 @@ Require Import PeepholeLocations.
 
 Require Import Coq.Lists.List.
 
-(* lemma 1
-
-Let b be a block and c an instruction list starting with
-a branching instruction. If Σ |- (b; c), R, F, M →* c, R', F', M'
-and α(b) = (m, s), then Σ|- [[m]](R, F, M ) = (R', F', M') and
-Σ, (R, F, M ) |= s. *) 
-(*
-Inductive constraintSatisfied : Constraint -> regset -> mem -> Prop :=
-  | readConst  : forall c rs m,
-    c = ReadMem (cnk,a) -> memLoad cnk m a rs (IReg EAX) <> None -> constraintSatisfied c rs m
-  | writeConst : forall c rs m,
-    c = WriteMem (cnk,a) -> memStore cnk m a rs (IReg EAX) <> None -> constraintSatisfied c rs m
-  | divConst   : forall c rs m,
-    c = DivBy e -> .
-
-Inductive constraintsSatisfied : list Constraint -> regset -> mem -> Prop :=
-  | noConstraints : forall c rs m, nil = c -> constraintsSatisfied c rs m
-  | allSubConstraintsMatch : forall c rs m, 
-    forall x xs, x::xs = c -> constraintSatisfied x rs m -> constraintsSatisfied xs rs m ->
-      constraintsSatisfied c rs m.
-
-
-Lemma semantics_symExec_same_state : forall (c : code) (rs : regset) (m : mem) (st : SymState),
-  symExec c initSymSt  = Some (SymSt s' m' r') ->
-  exec_instrs c rs m  = Next r'' m'' ->
-  symMemEqSemMem m' m'' /\ symRegEqSemReg r' r''
-  /\
-  constraintsSatisfied s' rs m.
-*)
-(* lemma 2
-
-Let b be a block and c an instruction list starting with a branching
-instruction. Let α(b) = (m, s). If Σ, (R,F,M) |= s, then there exists
-R', F', M' such that Σ|- (b; c), R, F, M →* c, R , F , M
-
-*)   
-
-
-(* lemma 3
-
-let b1, b2 be two blocks and c1,c2, two instruction sequences starting
-with branching instructions. If V(b1,b2) = true and Σ|-(b1;c1),R,F,M
-->* c1,R',F',M' then Σ |- (b2;c2), R, F, M ->* c2,R',F',M'
-
-*) 
 
 (** Utility lemmas and tactics -- 
 
@@ -130,8 +85,6 @@ Proof.
   rewrite H0 in H. rewrite <- H. reflexivity.
 Qed.
 
-
-
 (** Decision Procedure Correctness Proofs --
     
     For all of our
@@ -177,17 +130,6 @@ Proof.
   try reflexivity ; try case_preg_eq.
 Qed.
 
-Lemma beq_addrmode_correct : forall a b, beq_addrmode a b = true -> a = b.
-Proof.
-  induction a ; intros;
-  destruct b;
-  unfold beq_addrmode in H;
-  match goal with
-    | [ H : (if addrmode_eq ?l ?r then _ else _) = _ |- _] => case_eq (addrmode_eq l r) ; intros
-  end; auto;
-  rewrite H0 in H; inversion H.
-Qed.
-
 Lemma beq_SymExpr_Load_a : forall a b la le lb lf,
   beq_SymExpr (Load a la le) (Load b lb lf) = true -> beq_SymExpr a b = true.
 Proof.
@@ -229,28 +171,22 @@ Lemma beq_SymExpr_correct : forall a b, beq_SymExpr a b = true -> a = b.
 Proof.
   intro a.
   induction a using SymExpr_ind'; intros;
-    destruct b; try (invert_beq_SymExpr; try (apply IHa in H1; subst; auto); fail).
+    destruct b; 
+      try (invert_beq_SymExpr; split_andb; 
+        try (apply IHa in H1; subst; auto)).
 
   (* case: binOp *)
-  invert_beq_SymExpr;
-  split_andb;
   apply IHa1 in H2;
   apply IHa2 in H0;
   apply beq_SymOp_correct in H1; subst; reflexivity. 
 
   (* case: Imm *)
-  invert_beq_SymExpr;
   apply beq_val_correct in H; subst; auto.
 
   (* case: InitialReg *)
-  invert_beq_SymExpr;
   apply beq_preg_correct in H ; subst; auto.
 
   (* case: Load *)
-  invert_beq_SymExpr.
-  split_andb.
-
-(* Here it gets ugly... but its done... come clean this up. *)
   f_equal.
   apply IHa. assumption.
   
@@ -269,16 +205,6 @@ Proof.
   split_andb. assumption.
 Qed.
 
-
-
-Lemma beq_SymExpr_same : forall a, beq_SymExpr a a = true.
-Proof.
-  induction a using SymExpr_ind'; intros. simpl.
-  rewrite IHa1. rewrite IHa2. unfold beq_SymOp.
-  case_eq (SymOp_eq o o). intros. reflexivity. intros. elimtype False.
-  auto.
-Admitted.
-
 (* This lemma is probably too strong... we might want some kind of
 inductive relation on memory states instead *)
 Lemma beq_MemState_correct : forall a b, 
@@ -286,12 +212,9 @@ Lemma beq_MemState_correct : forall a b,
 Proof.
   induction a. destruct b. reflexivity. intro H. simpl in H. inversion H.
 
-  
   destruct b. simpl. intro H; destruct a in H; inversion H.
   intro.
   simpl in H. destruct a. destruct p. 
-  
-
 
   split_andb. apply beq_SymExpr_correct in H.
   apply beq_SymExpr_correct in H1.
@@ -424,22 +347,6 @@ Proof.
     apply symAllFlags_match_intro; assertFlag;
       apply symFlags_cases_match; apply validFlag__eq_or_undef; assumption.
 Qed.
-
-(* not sure we need this... but it occured to me. Admitted, but
-appears trivial with the right automation *)
-Lemma symAllFlags_match__validFlags : forall s1 s2,
-  symAllFlags_match s1 s2 ->
-  validFlags s1 s2 = true.
-Proof.
-  intros. inversion H; subst;
-  repeat
-    match goal with
-      | [ H: symFlags_match _ _ _ |- _ ] => inversion H; clear H; subst
-    end.
-  unfold validFlags. unfold validFlag. rewrite H1. rewrite H2. rewrite H3. rewrite H4. simpl.
-  repeat rewrite beq_SymExpr_same. repeat rewrite orb_true_r. reflexivity.
-Admitted.
-
 
 (** Here we have lemmas and proofs about peephole_validate itself. *)
 Lemma peephole_validate_length : forall (c d : code),
@@ -589,7 +496,8 @@ Proof.
 Qed.
   
 
-(** The overall correctness proof for peephole_validate. *)
+(** The overall correctness proof for peephole_validate within the our 
+   definition of symbolic equivalence. *)
 Theorem peephole_validate_correct : forall (c d : code) (s1 s2 : SymState),
   peephole_validate c d = true -> 
     symExec c initSymSt = Some s1 -> 
@@ -610,47 +518,13 @@ Variable prog: Asm.program.
 Variable tprog: Asm.program.
 Hypothesis TRANSF: peephole_transf_program prog = Errors.OK tprog.
 
-Theorem peephole_correct :
-   forall (match_states : Asm.state -> Asm.state -> Prop)
-          (measure : Asm.state -> nat)
-          (st1 : state) (t : trace) (st1' : state),
-   step (Genv.globalenv prog) st1 t st1' ->
-   forall st2 : state,
-   match_states st1 st2 ->
-   (exists st2' : state,
-      plus step (Genv.globalenv tprog) st2 t st2' /\ match_states st1' st2') \/
-   (measure st1' < measure st1)%nat /\ t = E0 /\ match_states st1' st2.
-Proof. Admitted.
-
-Lemma transf_initial_states:
-  forall match_states st1, Asm.initial_state prog st1 ->
-  exists st2, Asm.initial_state tprog st2 /\ match_states st1 st2.
-Proof.
-Admitted.
-(*   intros. inversion H. unfold ge0 in *.
-  econstructor; split.
-  econstructor.
-  eapply Genv.init_mem_transf_partial; eauto.
-  replace (symbol_offset (Genv.globalenv tprog) (prog_main tprog) Int.zero)
-     with (Vptr fb Int.zero).
-  econstructor; eauto. constructor. apply Mem.extends_refl.
-  split. auto. unfold parent_sp; congruence.
-  intros. repeat rewrite Pregmap.gso; auto with ppcgen.
-  destruct r; simpl; congruence.
-  unfold symbol_offset. 
-  rewrite (transform_partial_program_main _ _ TRANSF). 
-  rewrite symbols_preserved. unfold ge; rewrite H1. auto. *)
-
-
+(* If we had a way to connect our symbolic world to the CompCert semantic 
+   world, this is where it would end up... *)
 Lemma transf_final_states:
   forall match_states st1 st2 r, 
   match_states st1 st2 -> Asm.final_state st1 r -> Asm.final_state st2 r.
 Proof.
 Admitted.
-(*  intros. inv H0. inv H. constructor. auto. 
-  compute in H1. 
-  generalize (preg_val _ _ _ AX AG). rewrite H1. intros LD; inv LD. auto.
-Qed. *)
 
 Theorem transf_program_correct :
   forall (beh: program_behavior), not_wrong beh ->
@@ -658,23 +532,49 @@ Theorem transf_program_correct :
 Proof.
 Admitted.
 
-(*
-  unfold exec_program; intros.
-  (* the below is a "proof" of hte same form as Mach -> Asm, but it's
-  not the right approach i think.... but it suggests a future
-  path... *)
-  eapply simulation_star_preservation; eauto.  
-  eexact  transf_initial_states.  
-  eexact transf_final_states.  
-  eexact peephole_correct.  
-Qed. *)
-
 End PRESERVATION.
-(* above I've sketched in the proof, based on Mach->Asm and stubbed in
-major lemmas. After some thought, thought though, I think this may not
-be the right approach. We aren't showing that two different kinds of
-things have the same semantic, but instead that two of the same kind
-of thing hav ethe same semantic. This is different in important ways. 
+(* lemma 1
 
-The statement of the final theorem, though is the correct theorem. I'm
-not sure, it requires more thought. *)
+Let b be a block and c an instruction list starting with
+a branching instruction. If Σ |- (b; c), R, F, M →* c, R', F', M'
+and α(b) = (m, s), then Σ|- [[m]](R, F, M ) = (R', F', M') and
+Σ, (R, F, M ) |= s. *) 
+(*
+Inductive constraintSatisfied : Constraint -> regset -> mem -> Prop :=
+  | readConst  : forall c rs m,
+    c = ReadMem (cnk,a) -> memLoad cnk m a rs (IReg EAX) <> None -> constraintSatisfied c rs m
+  | writeConst : forall c rs m,
+    c = WriteMem (cnk,a) -> memStore cnk m a rs (IReg EAX) <> None -> constraintSatisfied c rs m
+  | divConst   : forall c rs m,
+    c = DivBy e -> .
+
+Inductive constraintsSatisfied : list Constraint -> regset -> mem -> Prop :=
+  | noConstraints : forall c rs m, nil = c -> constraintsSatisfied c rs m
+  | allSubConstraintsMatch : forall c rs m, 
+    forall x xs, x::xs = c -> constraintSatisfied x rs m -> constraintsSatisfied xs rs m ->
+      constraintsSatisfied c rs m.
+
+
+Lemma semantics_symExec_same_state : forall (c : code) (rs : regset) (m : mem) (st : SymState),
+  symExec c initSymSt  = Some (SymSt s' m' r') ->
+  exec_instrs c rs m  = Next r'' m'' ->
+  symMemEqSemMem m' m'' /\ symRegEqSemReg r' r''
+  /\
+  constraintsSatisfied s' rs m.
+*)
+(* lemma 2
+
+Let b be a block and c an instruction list starting with a branching
+instruction. Let α(b) = (m, s). If Σ, (R,F,M) |= s, then there exists
+R', F', M' such that Σ|- (b; c), R, F, M →* c, R , F , M
+
+*)   
+
+
+(* lemma 3
+
+let b1, b2 be two blocks and c1,c2, two instruction sequences starting
+with branching instructions. If V(b1,b2) = true and Σ|-(b1;c1),R,F,M
+->* c1,R',F',M' then Σ |- (b2;c2), R, F, M ->* c2,R',F',M'
+
+*) 
