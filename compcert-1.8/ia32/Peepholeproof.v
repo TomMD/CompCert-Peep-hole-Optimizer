@@ -206,15 +206,24 @@ Lemma beq_SymExpr_la_inductive : forall a b la le lb lf x y,
   beq_SymExpr (Load a (x::la) le) (Load b (y::lb) lf) = true ->
   beq_SymExpr (Load a la le) (Load b lb lf) = true.
 Proof.
-  induction la ; intros. destruct lb.
-Admitted.
+  destruct la ; intros. destruct lb. simpl in H. split_andb.
+  simpl. rewrite H0, H1. reflexivity.
+
+  simpl in H. split_andb. inversion H2.
+  simpl in H. split_andb. simpl. rewrite H0,H1,H2. 
+  reflexivity. 
+Qed.
 
 Lemma beq_SymExpr_le_inductive: forall a b la le lb lf x y,
   beq_SymExpr (Load a la (x::le)) (Load b lb (y::lf)) = true ->
   beq_SymExpr (Load a la le) (Load b lb lf) = true.
 Proof.
-  induction la ; intros. destruct lb.
-Admitted.
+  destruct le ; intros. destruct lf. simpl in H. split_andb.
+  simpl. rewrite H, H0.  reflexivity.
+  simpl in H. split_andb. inversion H2.
+  simpl in H. split_andb. inversion H2.
+  simpl in H. split_andb. simpl. rewrite H, H0, H2.  reflexivity.
+Qed.
 
 Lemma beq_SymExpr_correct : forall a b, beq_SymExpr a b = true -> a = b.
 Proof.
