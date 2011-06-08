@@ -70,7 +70,7 @@ Inductive SymExpr : Type :=
   | InitialMem : SymExpr -> SymExpr
 
   (* Memory *)
-  | Load : SymExpr -> list (SymExpr * SymExpr) -> SymExpr. (* addr being read, addr of value, value stored  *)
+  | Load : SymExpr -> list SymExpr -> list SymExpr -> SymExpr. (* addr being read, addr of value, value stored  *)
 
 (* To try and avoid confusion we use the alias 'Addr' to refer to
   SymExprs that represent an address *)
@@ -91,29 +91,7 @@ Section All.
     end.
 End All.
 
-Section PairBoth.
-  Variable T : Type.
-  Variable P : T -> Prop.
-  Fixpoint PairBoth (p : T * T) : Prop :=
-    match p with
-      (l,r) => P l /\ P r
-    end.
-End PairBoth.
-
-Implicit Arguments PairBoth.
-
-Section AllPairs.
-  Variable T : Type.
-  Variable P : T -> Prop.
-  Fixpoint AllPairs (ls : list (T * T)) : Prop :=
-    match ls with
-      | nil => True
-      | h :: t => PairBoth P h /\ AllPairs t
-    end.
-End AllPairs.
-
 Implicit Arguments All.
-Implicit Arguments AllPairs.
 
 Section SymExpr_ind'.
   Variable P : SymExpr -> Prop.
@@ -130,14 +108,14 @@ Section SymExpr_ind'.
   Hypothesis InitialReg_case : forall l, P (InitialReg l).
   Hypothesis InitialMem_case : forall l, P l -> P (InitialMem l).
 
-  Hypothesis Load_case : forall (a : Addr) (le : list (SymExpr *SymExpr)),
-    P a -> AllPairs P le -> P (Load a le).
+  Hypothesis Load_case : forall (a : Addr) (la : list SymExpr) (le : list SymExpr),
+    P a -> All P la -> All P le -> P (Load a la le).
 
   Fixpoint SymExpr_ind' (s : SymExpr) : P s :=
-    let SymExpr_pair :=
-      (fun (p : SymExpr * SymExpr) =>
-        match p  with
-          (l,r) => P l /\ P r
+    let list_SymExpr := (fix list_SymExpr (l : list SymExpr) : All P l :=
+        match l  with
+          | nil => I
+          | h :: t  => conj (SymExpr_ind' h) (list_SymExpr t)
         end) in
     match s as s' return P s' with
       | binOp o l r => binOp_case o l (SymExpr_ind' l) r (SymExpr_ind' r)
@@ -147,12 +125,8 @@ Section SymExpr_ind'.
       | Imm l => Imm_case l
       | InitialReg l => InitialReg_case l
       | InitialMem l => InitialMem_case l (SymExpr_ind' l)
-      | Load addr le => Load_case addr le (SymExpr_ind' addr)
-        ((fix list_SymExp_pair (le : list (SymExpr * SymExpr)) : AllPairs P le :=
-          match le with 
-            | nil => I
-            | h :: t =>  conj (SymExpr_pair h) (list_SymExp_pair t)
-          end) le)
+      | Load addr la le => Load_case addr la le (SymExpr_ind' addr)
+        (list_SymExpr la) (list_SymExpr le)
     end.
 
 End SymExpr_ind'.

@@ -200,26 +200,37 @@ Lemma beq_SymExpr_correct : forall a b, beq_SymExpr a b = true -> a = b.
 Proof.
   intro a.
   induction a using SymExpr_ind'; intros;
-    destruct b; try (invert_beq_SymExpr; try (apply IHa in H1; subst; auto)).
+    destruct b; try (invert_beq_SymExpr; try (apply IHa in H1; subst; auto); fail).
 
   (* case: binOp *)
+  invert_beq_SymExpr;
   split_andb;
   apply IHa1 in H2;
   apply IHa2 in H0;
   apply beq_SymOp_correct in H1; subst; reflexivity. 
 
   (* case: Imm *)
+  invert_beq_SymExpr;
   apply beq_val_correct in H; subst; auto.
 
   (* case: InitialReg *)
+  invert_beq_SymExpr;
   apply beq_preg_correct in H ; subst; auto.
-  (* case InitialMem *)
-  admit.
 
   (* case: Load *)
+  invert_beq_SymExpr.
   split_andb.
 
 (* Here it gets ugly... but its done... come clean this up. *)
+  f_equal.
+  apply IHa. assumption.
+  generalize dependent l.
+  induction la. intros. case_eq l. reflexivity. intros. subst. inversion H3.
+  intros; case_eq l. intros; subst. inversion H3. intros.
+  subst. f_equal. apply H. split_andb. assumption.
+  apply IHla. apply H. 
+
+
   assert (le = l0). 
 
   clear H0 H2 H1.
