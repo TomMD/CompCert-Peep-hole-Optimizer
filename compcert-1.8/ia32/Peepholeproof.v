@@ -23,13 +23,12 @@ Let b be a block and c an instruction list starting with
 a branching instruction. If Σ |- (b; c), R, F, M →* c, R', F', M'
 and α(b) = (m, s), then Σ|- [[m]](R, F, M ) = (R', F', M') and
 Σ, (R, F, M ) |= s. *) 
-
 (*
 Inductive constraintSatisfied : Constraint -> regset -> mem -> Prop :=
   | readConst  : forall c rs m,
-    c = ReadMem a -> memLoad Mint32 m a rs (IReg EAX) <> None -> constraintSatisfied c rs m
+    c = ReadMem (cnk,a) -> memLoad cnk m a rs (IReg EAX) <> None -> constraintSatisfied c rs m
   | writeConst : forall c rs m,
-    c = WriteMem a -> memStore Mint32 m a rs (IReg EAX) <> None -> constraintSatisfied c rs m
+    c = WriteMem (cnk,a) -> memStore cnk m a rs (IReg EAX) <> None -> constraintSatisfied c rs m
   | divConst   : forall c rs m,
     c = DivBy e -> .
 
@@ -46,7 +45,7 @@ Lemma semantics_symExec_same_state : forall (c : code) (rs : regset) (m : mem) (
   symMemEqSemMem m' m'' /\ symRegEqSemReg r' r''
   /\
   constraintsSatisfied s' rs m.
-  *)
+*)
 (* lemma 2
 
 Let b be a block and c an instruction list starting with a branching
@@ -162,18 +161,20 @@ Proof.
   try reflexivity; try case_val_eq.
 Qed.
 
-Lemma beq_Loc_correct : forall a b, beq_Loc a b = true -> a = b.
+Lemma beq_preg_correct : forall a b, beq_preg a b = true -> a = b.
 Proof.
-  induction a ; intros.
-  destruct b.
-  unfold beq_Loc in H. case_eq (Loc_eq (Register p) (Register p0)).
-  intros. assumption. intros.
-  rewrite H0 in H. inversion H. discriminate.
-  
-  destruct b ; inversion H.
-  unfold beq_Loc in H.
-  case_eq (Loc_eq (Memory a) (Memory a0)) ; intros.
-  auto.  rewrite H0 in H. inversion H.
+  Ltac case_preg_eq :=
+    match goal with
+      | [ H : (if preg_eq ?L ?R then _ else _) = true |- _ ] =>
+        case_eq (preg_eq L R); intros case CASE; auto; rewrite CASE in H; inversion H
+    end.
+
+  induction a ; intros ; try (
+    unfold beq_preg in H;
+  match goal with
+    | [ _ : _ |- _ = ?B ] => destruct b; inversion H
+  end);
+  try reflexivity ; try case_preg_eq.
 Qed.
 
 Lemma beq_addrmode_correct : forall a b, beq_addrmode a b = true -> a = b.
@@ -205,13 +206,15 @@ Proof.
   split_andb;
   apply IHa1 in H2;
   apply IHa2 in H0;
-  apply beq_SymOp_correct in H1; subst; auto.
+  apply beq_SymOp_correct in H1; subst; reflexivity. 
 
   (* case: Imm *)
   apply beq_val_correct in H; subst; auto.
 
-  (* case: Initial *)
-  apply beq_Loc_correct in H; subst; auto. 
+  (* case: InitialReg *)
+  apply beq_preg_correct in H ; subst; auto.
+  (* case InitialMem *)
+  admit.
 
   (* case: Load *)
   split_andb.
@@ -225,12 +228,24 @@ Proof.
   destruct l0. inversion H3.
   assert (a0 = s). apply H. split_andb; assumption.
   rewrite H0; f_equal. apply IHle. apply H. split_andb. assumption.
+  rewrite H4.
 
+(* WIP
+  assert (la = l).
+  generalize dependent l.
+  induction la ; intros. destruct l. reflexivity. inversion H2.
+  destruct l. inversion H2.
+  assert (a0 = s). simpl in H0.
+*)
+
+(* OLD CODE
   apply beq_addrchunk_correct in H1.
   f_equal; auto.
   case_eq (list_eq_dec addrchunk_eq la l). intros. assumption.
   intros n contra; rewrite contra in H2. inversion H2.
 Qed.
+*)
+Admitted.
 
 
 Lemma beq_SymExpr_same : forall a, beq_SymExpr a a = true.

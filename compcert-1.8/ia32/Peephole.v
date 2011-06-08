@@ -35,10 +35,6 @@ r2_0 = - r2_0 - 4 + 4
 
 Definition addrchunk := (memory_chunk * addrmode) % type.
 
-Inductive Loc : Type :=
-  | Register : preg -> Loc
-  | Memory   : addrchunk -> Loc.
-
 Inductive SymOp :=
   | SymAdd
   | SymAddF
@@ -70,11 +66,19 @@ Inductive SymExpr : Type :=
   | abs_f  : SymExpr -> SymExpr
   | neg_f  : SymExpr -> SymExpr
   | Imm    : val -> SymExpr
-  | Initial : Loc -> SymExpr
+  | InitialReg : preg -> SymExpr
+  | InitialMem : SymExpr -> SymExpr
 
   (* Memory *)
-  | Load : addrchunk -> list addrchunk -> list SymExpr -> SymExpr.
+  | Load : SymExpr -> list SymExpr -> list SymExpr -> SymExpr. (* addr being read, addr of value, value stored  *)
 
+(* To try and avoid confusion we use the alias 'Addr' to refer to
+  SymExprs that represent an address *)
+Definition Addr := SymExpr.
+
+Inductive Loc : Type :=
+  | Register : preg -> Loc
+  | Memory   : Addr -> Loc.
 
 (* we need a custom induction principle for our nested data type, a la cpdt *)
 Section All.
@@ -101,10 +105,11 @@ Section SymExpr_ind'.
   Hypothesis neg_f_case : forall (l : SymExpr),
     P l -> P (neg_f l).
   Hypothesis Imm_case : forall l, P (Imm l).
-  Hypothesis Initial_case : forall l, P (Initial l).
+  Hypothesis InitialReg_case : forall l, P (InitialReg l).
+  Hypothesis InitialMem_case : forall l, P (InitialMem l).
 
-  Hypothesis Load_case : forall (cnk : addrchunk) (la : list addrchunk) (le : list SymExpr),
-    All P le -> P (Load cnk la le).
+  Hypothesis Load_case : forall (a : Addr) (la : list SymExpr) (le : list SymExpr),
+    All P le -> P (Load a la le).
 
   Fixpoint SymExpr_ind' (s : SymExpr) : P s :=
     match s as s' return P s' with
@@ -113,8 +118,9 @@ Section SymExpr_ind'.
       | abs_f l => abs_f_case l  (SymExpr_ind' l)
       | neg_f l => neg_f_case l (SymExpr_ind' l)
       | Imm l => Imm_case l
-      | Initial l => Initial_case l
-      | Load cnk la le => Load_case cnk la le
+      | InitialReg l => InitialReg_case l
+      | InitialMem l => InitialMem_case l
+      | Load addr la le => Load_case addr la le
         ((fix list_SymExp (ls : list SymExpr) : All P ls :=
         match ls with
           | nil => I
@@ -147,8 +153,8 @@ Definition mult_f := binOp SymMultF.
 Definition div_f := binOp SymDivF.
 
 Inductive Constraint : Type :=
-  | ReadMem  : addrchunk -> Constraint
-  | WriteMem : addrchunk -> Constraint
+  | ReadMem  : SymExpr -> Constraint
+  | WriteMem : SymExpr -> Constraint
   | DivBy    : SymExpr  -> Constraint.
 
 Definition memory_chunk_eq : forall (c1 c2 : memory_chunk), {c1 = c2} + {c1 <> c2}.
@@ -199,20 +205,6 @@ Definition beq_val (a b : val) : bool :=
     | right _ => false
   end.
 
-(* define equality for Loc, used in the Loc store *)
-Lemma Loc_eq : forall (x y : Loc), {x = y} +  {x <> y}.
-Proof.
-  decide equality. 
-  apply preg_eq.
-  repeat decide equality; try apply Int.eq_dec. 
-Defined.
-
-Definition beq_Loc (a b : Loc) : bool :=
-  match Loc_eq a b with
-    | left _ => true
-    | right _ => false
-  end.
-
 (* decide equality for symbolic operators *)
 Lemma SymOp_eq : forall (x y : SymOp), {x = y} + {x <> y}.
 Proof.
@@ -223,6 +215,19 @@ Definition beq_SymOp (a b : SymOp) : bool :=
   match SymOp_eq a b with
     | left _ => true
     | right _ => false
+  end.
+
+Definition beq_preg (a b : preg) : bool :=
+  match preg_eq a b with
+    | left _ => true
+    | right _ => false
+  end.
+
+Fixpoint beq_list_preg (a b : list preg) : bool :=
+  match a,b with
+    | nil,nil => true
+    | x::xs, y::ys => beq_preg x y && beq_list_preg xs ys
+    | _,_ => false
   end.
 
 Fixpoint beq_SymExpr (s1 s2 : SymExpr) : bool :=
@@ -243,31 +248,33 @@ Fixpoint beq_SymExpr (s1 s2 : SymExpr) : bool :=
       | abs_f e1, abs_f e2 => beq_SymExpr e1 e2
       | neg_f e1, neg_f e2 => beq_SymExpr e1 e2
       | Imm v1, Imm v2 => beq_val v1 v2
-      | Initial l1, Initial l2 => beq_Loc l1 l2
-      | Load cnk1 as1 es1, Load cnk2 as2 es2 => leq_AM as1 as2 && leq_SE es1 es2 && beq_addrchunk cnk1 cnk2
+      | InitialReg l1, InitialReg l2 => beq_preg l1 l2
+      | InitialMem l1, InitialMem l2 => beq_SymExpr l1 l2
+      | Load addr1 as1 es1, Load addr2 as2 es2 =>
+        leq_SE as1 as2 && leq_SE es1 es2 && beq_SymExpr addr1 addr2
       | _,_ => false
     end.
 
-Fixpoint beq_MemState (a b :  list (addrchunk*SymExpr)) : bool :=
+Fixpoint beq_MemState (a b :  list (Addr*SymExpr)) : bool :=
   match a, b with
     | nil, nil => true
-    | (a1,s1)::xs, (a2,s2)::ys => beq_addrchunk a1 a2 && beq_SymExpr s1 s2 && beq_MemState xs ys
+    | (a1,s1)::xs, (a2,s2)::ys => beq_SymExpr a1 a2 && beq_SymExpr s1 s2 && beq_MemState xs ys
     | _,_ => false
   end.
 
 Definition beq_constraint (a b : Constraint) : bool :=
   match a, b with
-    | ReadMem a1, ReadMem a2 => beq_addrchunk a1 a2
-    | WriteMem a1, WriteMem a2 => beq_addrchunk a1 a2
+    | ReadMem a1, ReadMem a2 => beq_SymExpr a1 a2
+    | WriteMem a1, WriteMem a2 => beq_SymExpr a1 a2
     | DivBy e1, DivBy e2 => beq_SymExpr e1 e2
     | _, _ => false
   end.
 
-(* the type of our memory store *)
-Definition mems := @LocStore addrchunk SymExpr addrchunk_eq.
-
 (* the type of our register store *)
-Definition regs := @LocStore preg SymExpr preg_eq.
+Definition regs := @LocStore preg SymExpr beq_preg.
+
+(* the type of our memory store *)
+Definition mems := @LocStore SymExpr SymExpr beq_SymExpr.
 
 (* A "SymState" encodes the concept of the state of a symbolic execution.
    It includes a mapping of locations to symbolic expressions and set
@@ -290,9 +297,9 @@ Definition symReg (s : SymState) : regs :=
   | SymSt _ _ l => l
   end.
 
-Definition symSetMem (l : addrchunk) (x : SymExpr) (s : SymState) : SymState :=
+Definition symSetMem (l : SymExpr) (x : SymExpr) (s : SymState) : SymState :=
   match s with
-  | SymSt c m r => SymSt c (update l  x m) r
+  | SymSt c m r => SymSt c (update l x m) r
   end.
 
 Definition symSetReg (l : preg) (x : SymExpr) (s : SymState) : SymState :=
@@ -306,12 +313,12 @@ Definition constraints (s : SymState) : list Constraint :=
   end.
 
 (* Helper functions to modify the constraints of a SymState *)
-Definition readMem (l : addrchunk) (s : SymState) : SymState :=
+Definition readMem (l : SymExpr) (s : SymState) : SymState :=
   match s with
     | SymSt c mapping r => SymSt (ReadMem l::c) mapping r
   end.
 
-Definition writeMem (l : addrchunk) (s : SymState) : SymState :=
+Definition writeMem (l : SymExpr) (s : SymState) : SymState :=
   match s with
     | SymSt c mapping r => SymSt (WriteMem l ::c) mapping r
   end.
@@ -326,15 +333,16 @@ Definition divBy (e : SymExpr) (s : SymState) : SymState :=
     undefined and instead has the value "Initial foo" for the location
     "foo". Not sure why I have to restate the decision procedure, but
     there it is *)
-Definition initMem : mems := initLocStore addrchunk_eq (compose Initial Memory).
-Definition initReg : regs := initLocStore preg_eq (compose Initial Register).
+Definition initMem : mems := initLocStore beq_SymExpr (InitialMem).
+Definition initReg : regs := initLocStore beq_preg (InitialReg).
 Definition initSymSt : SymState := SymSt nil initMem initReg.
 
 Notation "a # b" :=
   match b with
   | Register p  => (lookup p (symReg a))
-  | Memory cnk => let (addrs,syms) := split (store (symMem a)) in 
-    Load cnk addrs syms  (* (lookup m (symMem a)) *)
+  | Memory cnk =>
+    let (addrs,syms) := split (store (symMem a)) in 
+        Load cnk addrs syms  (* (lookup m (symMem a)) *)
   end (at level 1, only parsing).
 
 Notation "a # b <- c" :=
@@ -377,13 +385,19 @@ Definition single_symExec (i : instruction) (l : SymState) : option SymState :=
   | Pnop => Some l
       (** Moves *)
   | Pmov_rr rd r1 =>
-      Some (l # (Register rd) <- (l # (Register r1)))
+      Some (l # (Register rd) <- (l # (Register r1))) (* (lookup (IR r1) (symReg l)))  (* (l # (Register r1))) *) *)
   | Pmov_ri rd n =>
       Some (l # (Register rd) <- (Imm (Vint n)))
   | Pmov_rm rd a =>
-      Some (readMem (Mint32,a) (l # (Register rd) <- (l # (Memory (Mint32, a)))))
+    match eval_addrmode a l with
+      | None    => None
+      | Some aE => Some (readMem aE (l # (Register rd) <- (l # (Memory aE))))
+    end
   | Pmov_mr a r1 =>
-      Some (writeMem (Mint32,a) (l # (Memory (Mint32,a)) <- (l # (Register r1))))
+    match eval_addrmode a l with
+      | None    => None
+      | Some aE => Some (writeMem aE (l # (Memory aE) <- (l # (Register r1))))
+    end
   | Pmovd_fr rd r1 =>
       Some (l # (Register rd) <- (l # (Register r1)))
   | Pmovd_rf rd r1 => 
@@ -393,17 +407,29 @@ Definition single_symExec (i : instruction) (l : SymState) : option SymState :=
   | Pmovsd_fi rd n =>
       Some (l # (Register rd) <- (Imm (Vfloat n))) 
   | Pmovsd_fm rd a =>
-      Some (readMem (Mfloat64,a) (l # (Register rd) <- (l # (Memory (Mfloat64,a)))))
+    match eval_addrmode a l with
+      | None    => None
+      | Some aE => Some (readMem aE (l # (Register rd) <- (l # (Memory aE))))
+    end
   | Pmovsd_mf a r1 =>
-      Some (writeMem (Mfloat64,a) (l # (Memory (Mfloat64,a)) <- (l # (Register r1))))
+    match eval_addrmode a l with
+      | None    => None
+      | Some aE => Some (writeMem aE (l # (Memory aE) <- (l # (Register r1))))
+    end
   | Pfld_f r1 =>
       Some (l # (Register ST0) <- (l # (Register r1)))  (* We don't track flags for the FPU *)
   | Pfld_m a =>
-      Some (readMem (Mfloat64,a) (l # (Memory (Mfloat64,a)) <- (l # (Register ST0))))
+    match eval_addrmode a l with
+      | None    => None
+      | Some aE => Some (readMem aE (l # (Memory aE) <- (l # (Register ST0))))
+    end
   | Pfstp_f rd =>
       Some (l # (Register rd) <- (l # (Register ST0)))
   | Pfstp_m a =>
-      Some (writeMem (Mfloat64,a) (l # (Memory (Mfloat64,a)) <- (l # (Register ST0))))
+    match eval_addrmode a l with
+      | None    => None
+      | Some aE => Some (writeMem aE (l # (Memory aE) <- (l # (Register ST0))))
+    end
   (** Moves with conversion -- Currently unsupported *)
   | Pmovb_mr a r1 =>
       None (* exec_store Mint8unsigned m a rs r1 *)
@@ -688,7 +714,6 @@ Fixpoint all {A : Type} (p : A -> bool) (xs : list A) : bool :=
   - mult r1 2 ==> add r1 r1
   - shiftL r1 x ==> mult r1 (2^x)
 
-  FIXME Do I need to handle operations on pointer values (and not just Vint)?
 *)
 
 Fixpoint normalizeSymOp (o : SymOp) (e1 e2 : SymExpr) : SymExpr := 
@@ -709,15 +734,15 @@ Fixpoint normalizeSymOp (o : SymOp) (e1 e2 : SymExpr) : SymExpr :=
    do not alias each other.  Always returning false is safe
    but means we catch fewer optimization opportunities
 *)
-Definition doesNotAlias (a1 a2 : addrchunk) := false.
+Definition doesNotAlias (a1 a2 : SymExpr) := false.
 
 (* Try to normalize a lookup by replacing the expression with the stored value,
    but ONLY IF it can be proven not to alias.
 *)
-Fixpoint nonaliasedLookup (a : addrchunk) (addrs : list addrchunk)(syms : list SymExpr) : SymExpr :=
+Fixpoint nonaliasedLookup (a : Addr) (addrs : list Addr) (syms : list SymExpr) : SymExpr :=
   match addrs,syms with
     | a1::moreA,s1::moreS =>
-      if beq_addrchunk a1 a
+      if beq_SymExpr a1 a
         then s1
         else
           if doesNotAlias a1 a
@@ -740,10 +765,10 @@ Proof.
   apply IHxs. simpl. omega.
 Qed.
 
-Function normalizeMem (zipped : list (addrchunk * SymExpr)) {measure length zipped}: (list (addrchunk * SymExpr)) := 
+Function normalizeMem (zipped : list (Addr * SymExpr)) {measure length zipped}: (list (Addr * SymExpr)) := 
     match zipped with
       | (a1,s1)::more =>
-        let filterOp x := if beq_addrchunk (fst x) a1 then false else true in
+        let filterOp x := if beq_SymExpr (fst x) a1 then false else true in
         (a1,s1) :: normalizeMem (filter filterOp more)  (* FIXME we want to normalize s1 here *)
       | _ => nil
     end.
@@ -772,9 +797,10 @@ Fixpoint normalize (s : SymExpr) : SymExpr :=
           | _       => normalize e
         end
     | Imm v => Imm v
-    | Initial l => Initial l
+    | InitialReg l => InitialReg l
+    | InitialMem l => InitialMem l
     | Load a addrs syms => let (addrs', syms') := split (normalizeMem (combine addrs syms))
-      in nonaliasedLookup a addrs' syms'
+      in nonaliasedLookup a addrs' syms
   end.
 
 Definition normalizeConstraint (c : Constraint) : Constraint :=
