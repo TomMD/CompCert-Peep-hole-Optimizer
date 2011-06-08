@@ -73,7 +73,49 @@ Certain instructions, particularly those working on data
 smaller than 32 bits, have no symbolic execution.
 
 \subsection{Status of proofs: }
-FIXME
+We have defined a set of inductive propositions which make explicit
+the meaning of two symbolic states being equivalent. Generally
+speaking, we use syntactic equality between symbolic expressions to
+express equivalence between portions of symbolic state. But
+in some cases, e.g., status flags, we allow different relations to
+suffice. For example, in keeping with the convention on CompCert, if a
+flag becomes {\it more defined} as a result of an operation, that flag
+would be considered equivalent to the less defined version. 
+
+The overall equivalence proposition is :
+
+\begin{verbatim}
+Inductive symStates_match : SymState -> SymState -> Prop :=
+| symStates_match_intro : 
+  forall s1 s2, 
+    symAllFlags_match s1 s2 ->
+    symAllRegs_match s1 s2 ->
+    symMemory_match s1 s2 ->
+    subset (constraints s1) (constraints s2) = true ->
+    symStates_match s1 s2. 
+  
+\end{verbatim}
+
+This proposition captures our definition of symbolic state
+equivalence. To support this proposition, there are a number of
+additional inductive propositions and correctness lemmas for various
+boolean decision properties. 
+
+The correctness of our optimizations depends on the validation routine
+only accepting code fragments for which we can prove the above
+proposition. This is stated in  the correctness theorem for our
+validation routine:
+
+\begin{verbatim}
+  Theorem peephole_validate_correct : forall (c d : code) (s1 s2 : SymState),
+  peephole_validate c d = true -> 
+    symExec c initSymSt = Some s1 -> 
+    symExec d initSymSt = Some s2 ->
+    symStates_match s1 s2.
+\end{verbatim}
+
+This theorem has been completely proved for the model as it
+exists.
 
 \section{False Starts}
 \paragraph{Direct addition to the x86 ASM stage: }
