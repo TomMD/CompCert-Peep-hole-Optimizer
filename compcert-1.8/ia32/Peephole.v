@@ -633,6 +633,7 @@ Definition single_symExec (i : instruction) (l : SymState) : option SymState :=
       (* Stuck                             (**r treated specially below *)*)
   end.
 
+(* Big step symbolic execution *)
 Fixpoint symExec (c : code) (l : SymState) : option SymState :=
   match c with
     | nil => Some l
@@ -642,37 +643,15 @@ Fixpoint symExec (c : code) (l : SymState) : option SymState :=
                  end
   end.
 
-Notation "a '&&&' b" := 
-  (if a 
-    then if b
-      then Utils.in_left
-      else Utils.in_right
-    else Utils.in_right).
-
 Definition isCR (c : preg) : bool :=
   match c with
     | (CR _) => true
     | _ => false
   end.
 
-Fixpoint all {A : Type} (p : A -> bool) (xs : list A) : bool :=
-  match filter (fun x => negb (p x)) xs with
-    | nil => true
-    | _   => false
-  end.
-
-(* Begin Stubs! *)
-
-(* The normalization of binOps determines what instruction weakening / replacement
-  is acceptable from the optimizer.
-
-  The normalization steps are:
-  - For effectless operations we just remove the layer (ex: and r1 0 == r1)
-  - mult r1 2 ==> add r1 r1
-  - shiftL r1 x ==> mult r1 (2^x)
-
-*)
-
+(* The normalization of binOps determines what instruction weakening /
+  replacement is acceptable from the optimizer.  The semantic
+  correctness of this routine is critical, but not proven. *)
 Fixpoint normalizeSymOp (o : SymOp) (e1 e2 : SymExpr) : SymExpr := 
   let default := binOp o e1 e2 in
   match o,e1,e2 with
@@ -687,19 +666,32 @@ Fixpoint normalizeSymOp (o : SymOp) (e1 e2 : SymExpr) : SymExpr :=
   | _,_,_ => binOp o e1 e2
   end.
 
-(* doesNoAlias returns true when it can prove two addresses
-   do not alias each other.  Always returning false is safe
-   but means we catch fewer optimization opportunities
-*)
+(* doesNoAlias returns true when it can prove two addresses do not
+   alias each other.  Always returning false is safe but means we
+   catch fewer optimization opportunities - "false" means we miss any
+   case where we load an address 'X' that is not the most recently
+   store and all stores between now and 'X' are provably not alias of
+   'X'.  *)
 Definition doesNotAlias (a1 a2 : SymExpr) := false.
 
-(* Try to normalize a lookup by replacing the expression with the stored value,
-   but ONLY IF it can be proven not to alias.
-*)
+
+(* In much of the below work there would be great benefit to being
+   able to have mutually recursive functions.  For example,
+   "nonaliasedLookup" should be able to call "normalize" when
+   comparing to addresses for equality (to allow more optimizations).
+   Unfortunately, nonaliasedLookup is itself part of normalize so
+   without making it a local function to "normalize" this isn't
+   possible.
+
+   These situations are commented, as a form of lamentation / protest,
+   with MRF (Mutual Recusion FIXME).  *)
+
+(* Normalize a lookup by replacing the expression with the
+   stored value, but ONLY IF it can be proven not to alias. *)
 Fixpoint nonaliasedLookup (a : Addr) (addrs : list Addr) (syms : list SymExpr) : SymExpr :=
   match addrs,syms with
     | a1::moreA,s1::moreS =>
-      if beq_SymExpr a1 a
+      if beq_SymExpr a1 a  (* MRF *)
         then s1
         else
           if doesNotAlias a1 a
@@ -726,7 +718,7 @@ Function normalizeMem (zipped : list (Addr * SymExpr)) {measure length zipped}: 
     match zipped with
       | (a1,s1)::more =>
         let filterOp x := if beq_SymExpr (fst x) a1 then false else true in
-        (a1,s1) :: normalizeMem (filter filterOp more)  (* FIXME we want to normalize s1 here *)
+        (a1,s1) :: normalizeMem (filter filterOp more)  (* MRF, fst x, a1 *)
       | _ => nil
     end.
 Proof.
@@ -763,10 +755,11 @@ Fixpoint normalize (s : SymExpr) : SymExpr :=
 Definition normalizeConstraint (c : Constraint) : Constraint :=
   match c with
     | DivBy se => DivBy (normalize se)
-    | _ => c
+    | ReadMem a => ReadMem (normalize a)
+    | WriteMem a => WriteMem (normalize a)
   end.
 
-(* Test if 'a' is a subset of 'b' *)
+(* Test if 'a' is a subset of 'b' (normalizing & comparing constraints) *)
 Fixpoint subset (a b : list Constraint) : bool :=
   match a with
     | nil => true
@@ -775,43 +768,49 @@ Fixpoint subset (a b : list Constraint) : bool :=
         existsb elemCheck b && subset xs b
   end.
 
+(* For memory to be valid it must be syntaxtically equal after normalization *)
 Definition validMem (c : SymState) (d : SymState) : bool := 
   let (c',d') := (normalizeMem (store (symMem c)), normalizeMem (store (symMem d))) in
     beq_MemState c' d'.
 
+(* Registers are valid if every register, except the flag register, has
+   the same symbolic value.  This task is broken down into integer and
+   floating point registers. *)
 Fixpoint validIRegs (c d : SymState) : bool :=
   let ir i := Register (IR i) in
     let check x := beq_SymExpr (normalize (c # (ir x))) (normalize (d # (ir x))) in
-   check EAX && check EBX && check ECX && check EDX && check ESI &&
-   check EDI && check EBP && check ESP.
+      check EAX && check EBX && check ECX && check EDX && check ESI &&
+      check EDI && check EBP && check ESP.
 
 Fixpoint validFRegs (c d : SymState) : bool :=
   let ir i := Register (FR i) in
     let check x := beq_SymExpr (normalize (c # (ir x))) (normalize (d # (ir x))) in
-   check XMM0 && check XMM1 && check XMM2 && check XMM3 &&
-   check XMM4 && check XMM5 && check XMM6 && check XMM7.
+      check XMM0 && check XMM1 && check XMM2 && check XMM3 &&
+      check XMM4 && check XMM5 && check XMM6 && check XMM7.
 
 Fixpoint validRegs (c d : SymState) : bool :=
   let ir i := Register i in
     let check x := beq_SymExpr (normalize (c # (ir x))) (normalize (d # (ir x))) in
-  check PC && check ST0 && check RA &&
-  validIRegs c d &&
-  validFRegs c d.
+      check PC && check ST0 && check RA &&
+      validIRegs c d &&
+      validFRegs c d.
 
+(* Flags are valid if they are the same or become "more defined" *)
 Definition validFlag (f : Loc) (c : SymState) (d : SymState) : bool :=
   beq_SymExpr (c # f) symUndef || beq_SymExpr (c # f) (d # f).
 
-(* A valid flag is one with the same definition or one that becomes
-  "more defined" from a previous symUndef value. *)
 Definition validFlags (c : SymState) (d : SymState) : bool :=
   validFlag (Register (CR ZF)) c d && 
   validFlag (Register (CR PF)) c d && 
   validFlag (Register (CR CF)) c d && 
   validFlag (Register (CR SOF)) c d.
 
+(* All constraints in the optimized code must appear in the pre-optimized code *)
 Definition validConstraints (c : SymState) (d : SymState) : bool :=
   subset (constraints c) (constraints d).
 
+(* To symbolic executions match if the flags, registers, memory
+   states, and constraints match after being normalized. *)
 Definition sameSymbolicExecution (c : option SymState) (d : option SymState) : bool :=
   match c, d with
     | Some c', Some d' =>
@@ -837,10 +836,10 @@ Fixpoint peephole_validate (c : Asm.code) (d : Asm.code) : bool :=
 Parameter ml_optimize : Asm.code -> Asm.code.
 Parameter peephole_failed : Asm.code -> Asm.code -> unit.
 
-(** Peephole optimization of function level lists of assembly code. We
-  feed the optimizer sliding windows of up to 4 instructions and then
-  validate the results returned. If the results are valid, they are
-  used, otherwise, they are discarded. **)
+(** Peephole optimization operates on "executable blocks" - lists of
+    assembly code.  If the validator succeeds then we succeed, if it
+    failes we call a logging routine (currently getting optimized
+    away!)  and return the old (known-good) assembly code. *)
 Definition opt_window (c : Asm.code) :=
   let d := ml_optimize c
   in if peephole_validate c d
@@ -885,13 +884,16 @@ Fixpoint only_opt_instrs (c : code) : code :=
                  end
   end.
 
-Function basic_block (c : Asm.code) {measure length c} : list Asm.code :=
+(* To obtain the blocks of code for optimization, we break the
+   instruction list into symbolically executable chunks separated by
+   singletons of unexecutable instructions. *)
+Function sym_executable_block (c : Asm.code) {measure length c} : list Asm.code :=
   match c with
     | nil => nil
     | x :: xs => match (single_symExec x initSymSt) with
-                   | None => (x :: nil) :: (basic_block xs) (* singleton of unoptimized instr *)
+                   | None => (x :: nil) :: (sym_executable_block xs)
                    | Some _ => let opts := only_opt_instrs xs 
-                     in (x :: opts) :: basic_block (skipn (length opts) xs)
+                     in (x :: opts) :: sym_executable_block (skipn (length opts) xs)
                  end
   end.
   intros. simpl.
@@ -902,7 +904,7 @@ Qed.
 Definition concat (c : list Asm.code) : Asm.code := fold_left (fun a b => a ++ b) c nil.
 
 Definition optimize (c : Asm.code) : Asm.code :=
-  let parts := basic_block c in concat (map opt_window parts).
+  let parts := sym_executable_block c in concat (map opt_window parts).
     
 Definition transf_function (f: Asm.code) : res Asm.code :=
   OK (optimize f).
