@@ -9,9 +9,10 @@
 \section{Introduction}
 
 Compcert's x86 back-end is known to produce inefficient code, even
-when compared to ARM and PPC code produced from the same source code.
-Informal observation suggests there is opportunity for performance
-improvement using an architecture specific peephole optimization.
+when compared to ARM and PPC instructions produced from the same
+source code.  Informal observation suggests there is opportunity for
+performance improvement using an architecture specific peephole
+optimization.
 
 \section{Method}
 
@@ -26,53 +27,13 @@ Below we address each of these components individually.
 
 The validator accepts the pre- and post-optimized code as arguments.
 It then symbolicly executes each of the pieces of code and compares
-the result.  Our current design is to obtain three pieces of data from
-symbolic execution: a mapping of locations (registers, memory) to
-values (symbolic expressions), a set of all observed locations, and a
-set of ``constraints'' (operations that might produce side effects not
-captured by our symbolic expressions, such as dividing by zero).
+the result.  Symbolic execution results in three critical pieces of
+information: the state of memory, the state of the registers
+(including flags), and a set of ``constraints'' (operations that might
+produce side effects not captured by the symbolic expressions, such as
+dividing by zero).
 
-\section{Wrapping It All Together: Optimize!}
-The optimize function accepts a basic block and divides it into
-smaller blocks, breaking the list of instructions at each instruction
-that is not recognized by our symbolic execution.  For each of these
-``executable blocks'', we optimize the code and validate the result
-has the same execution as the original instructions.  If the
-validation ever fails, the optimized block is discarded in favor of
-the original.
-
-\section{Proof of Correctness of the Validator}
-
-\section{ML Peephole Optimizer}
-The actual peephole optimization contains load/store and removal of
-redundant loads ({\tt load reg mem; \{op;\}* load reg mem;}
-\rightarrow {\tt load reg mem; \{op;\}*}) optimizations.  The Gallina
-code provides the optimizer with the largest possible block that can
-be symbolicly executed, the optimizer is in charge of extracting
-suitable windows for the operation of individual optimization rules.
-
-\section{Dark Corners}
-\subsection{Aspects of Symbolic Execution}
-\paragraph{Limited Normalization: }The validator's normalization
-process translates all symbolic expressions into a normal form,
-allowing direct comparison of expressions from differint executions.
-Unfortunately, there exists a (unimplemented) need for mutual recursion
-between the normalization of expressions and the normalization of expressions
-stored in memory (the state of memory is often captured as a component of
-symbolic expressions).
-The result of this being unimplemented is two executions that are semantically
-the same but symbolically different (ex: {\tt mult x 2} vs {\tt add x x})
-will only be properly normalized and accepted if the non-normalized
-value was kept in the registers and never {\it spilled} into memory.
-
-Finally, there is no alias analysis used when normalizing loads into the
-stored expressions.
-
-\paragraph{Shortcomings: }
-Certain instructions, particularly those working on data
-smaller than 32 bits, have no symbolic execution.
-
-\subsection{Status of proofs: }
+\section{Status of proofs: }
 We have defined a set of inductive propositions which make explicit
 the meaning of two symbolic states being equivalent. Generally
 speaking, we use syntactic equality between symbolic expressions to
@@ -117,7 +78,65 @@ validation routine:
 This theorem has been completely proved for the model as it
 exists.
 
+\section{Optimizer (Gallina side - plumbing)}
+The optimize function accepts a basic block and divides it into
+smaller blocks, breaking the list of instructions at each instruction
+that is not recognized by our symbolic execution.  For each of these
+``executable blocks'', we optimize the code and validate the result
+has the same execution as the original instructions.  If the
+validation ever fails, the optimized block is discarded in favor of
+the original.
+
+\section{Optimizer (ML side - functionality}
+The actual optimizations are load/store and removal of redundant loads
+({\tt load reg mem; \{op;\}* load reg mem;} \rightarrow {\tt load reg
+  mem; \{op;\}*}).  The Gallina code provides the optimizer with the
+largest possible block that can be symbolicly executed, the optimizer
+is in charge of extracting suitable windows for the operation of
+individual optimization rules.
+
+\section{Dark Corners}
+\subsection{Aspects of Symbolic Execution}
+\paragraph{Limited Normalization: }The validator's normalization
+process translates all symbolic expressions into a normal form,
+allowing direct comparison of expressions from differint executions.
+Unfortunately, there exists a (unimplemented) need for mutual
+recursion between the normalization of expressions and the
+normalization of expressions stored in memory (the state of memory is
+often captured as a component of symbolic expressions).  In lieu of
+this mutual recursion, any two executions that are semantically the
+same but symbolically different (ex: {\tt mult x 2} vs {\tt add x x})
+will only be properly normalized and accepted if the non-normalized
+value was kept in the registers and never {\it spilled} into memory.
+
+Finally, there is no alias analysis used when normalizing loads into
+the stored expressions.  This isn't a fundamental issue, merely a
+failing due to time constraints and the complexity of comparing the
+rather verbose {\tt SymExpr}'s for identical base and constant offset
+of sufficient size.
+
+\paragraph{Shortcomings: }
+Certain instructions, particularly those working on data
+smaller than 32 bits, have no symbolic execution.
+
+\paragraph{Treatment of flags: } 
+The flags follow x86 semantics~\footnote{x86 semantics as defined by
+  Intel} as closely as possible~\footnote{CompCert ignores some flags
+  and conflates others, providing only one register bit for two
+  separate flags.}.  By following the Intel specification, the
+validator is more restrictive than, but not in conflict with, the
+CompCert semantics which declares the flags to be undefined after most
+arithmetic instructions.  Because this work defines normalization as
+an operation that maintains arithmetic equivalence, but not necesarily
+the flag value's equivalence, it is not possible to normalize the
+expressions when comparing flag values.  Instead, a straight forward
+syntaxtic equality is used which could result in unnecessary rejection
+of optimized code.
+
 \section{False Starts}
+In general, the false starts give a solid ``lessons learned'' of
+explicitly identifying and verifying the assumptions early.
+
 \paragraph{Direct addition to the x86 ASM stage: }
 The first attempt was to add peephole optimization directly to the ASM
 stage in CompCert.  After much wrestling with existing proofs, which
@@ -129,11 +148,27 @@ theorem for the end-to-end proof.
 
 \paragraph{Avoidance of Alias Analysis: }
 Our canonical optimizations were instruction weakening and removing
-redundant loads, neither of which require alias analysis.  For a time
-we believed such analysis was not needed for a first stab.  Due to
-pseudo instructions there were zero redundant loads visiable to the
-peephole optimizer, forcing us to reconsider our intended showcase
-optimization.
+sequential redundant loads, neither of which require alias analysis.
+Due to pseudo instructions there were zero redundant loads visiable to
+the peephole optimizer; coupled with the generally larger scope of
+instruction weakening, this forced us to reconsider our intended
+showcase optimization and include proper alias analysis.
+
+\paragraph{Use of {\tt addrmode} for address information}
+Even late into development CompCert's {\tt addrmode} was used to as the
+memory addressing under the implicit assumption addrmode equality would 
+correctly identify aliasing.  Briefly, {\tt addrmode}'s are
+insufficient because they capture a base in terms of a particular register
+and not the contents of the register at the time the address was used.
+Replacing this dependence was the source of significant code and proof
+reworking.
+
+\section{Impact of the Optimizer}
+In our test code (consisting of benchmarks from the ``Computer
+Language Shoot-out'') we remove 29 assembly instructions when
+compiling ~1000 lines of C code that result in 2416 assembly
+instructions.  All the instruction removals are due to the redundant
+load optimization.
 
 \section{Conclusion}
 
