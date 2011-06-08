@@ -188,13 +188,33 @@ Proof.
   rewrite H0 in H; inversion H.
 Qed.
 
-Lemma beq_addrchunk_correct : forall a b, beq_addrchunk a b = true -> a = b.
+Lemma beq_SymExpr_Load_a : forall a b la le lb lf,
+  beq_SymExpr (Load a la le) (Load b lb lf) = true -> beq_SymExpr a b = true.
 Proof.
-  induction a.
-  intros. destruct b0.  unfold beq_addrchunk in H.
-  case_eq (addrchunk_eq (a, b) (m, a0)). intros. auto. 
-  intros. rewrite H0 in H. inversion H. 
+  induction a using SymExpr_ind' ; intros ;
+    try (destruct b; try (simpl in H; split_andb; inversion H0);
+      simpl in H ; split_andb; reflexivity).
+
+  destruct b ; try (simpl in H; split_andb; inversion H0; fail).
+  simpl in H. split_andb. simpl. rewrite H0, H1, H2. reflexivity.
+
+  destruct b; try (simpl in H1; split_andb; inversion H2; fail).
+  simpl in H1. split_andb. simpl. rewrite H2, H3, H4. reflexivity.
 Qed.
+
+Lemma beq_SymExpr_la_inductive : forall a b la le lb lf x y,
+  beq_SymExpr (Load a (x::la) le) (Load b (y::lb) lf) = true ->
+  beq_SymExpr (Load a la le) (Load b lb lf) = true.
+Proof.
+  induction la ; intros. destruct lb.
+Admitted.
+
+Lemma beq_SymExpr_le_inductive: forall a b la le lb lf x y,
+  beq_SymExpr (Load a la (x::le)) (Load b lb (y::lf)) = true ->
+  beq_SymExpr (Load a la le) (Load b lb lf) = true.
+Proof.
+  induction la ; intros. destruct lb.
+Admitted.
 
 Lemma beq_SymExpr_correct : forall a b, beq_SymExpr a b = true -> a = b.
 Proof.
@@ -224,39 +244,22 @@ Proof.
 (* Here it gets ugly... but its done... come clean this up. *)
   f_equal.
   apply IHa. assumption.
+  
   generalize dependent l.
-  induction la. intros. case_eq l. reflexivity. intros. subst. inversion H3.
-  intros; case_eq l. intros; subst. inversion H3. intros.
-  subst. f_equal. apply H. split_andb. assumption.
-  apply IHla. apply H. 
+  induction la; intros. case_eq l. reflexivity. intros. subst. inversion H3.
+  case_eq l; intros; subst. inversion H3.
+  f_equal. apply H. split_andb. assumption.
+  apply IHla. apply H. apply (beq_SymExpr_la_inductive _ _ _ _ _ _ a0 s). apply H1.
+  split_andb. assumption.
 
-
-  assert (le = l0). 
-
-  clear H0 H2 H1.
   generalize dependent l0.
-  induction le; intros. destruct l0. reflexivity. inversion H3.
-  destruct l0. inversion H3.
-  assert (a0 = s). apply H. split_andb; assumption.
-  rewrite H0; f_equal. apply IHle. apply H. split_andb. assumption.
-  rewrite H4.
-
-(* WIP
-  assert (la = l).
-  generalize dependent l.
-  induction la ; intros. destruct l. reflexivity. inversion H2.
-  destruct l. inversion H2.
-  assert (a0 = s). simpl in H0.
-*)
-
-(* OLD CODE
-  apply beq_addrchunk_correct in H1.
-  f_equal; auto.
-  case_eq (list_eq_dec addrchunk_eq la l). intros. assumption.
-  intros n contra; rewrite contra in H2. inversion H2.
+  induction le ; intros. case_eq l0. reflexivity. intros. subst. inversion H4.
+  case_eq l0; intros; subst. inversion H4.
+  f_equal. apply H0. split_andb. assumption.
+  apply IHle. apply H0. eapply beq_SymExpr_le_inductive. apply H1.
+  split_andb. assumption.
 Qed.
-*)
-Admitted.
+
 
 
 Lemma beq_SymExpr_same : forall a, beq_SymExpr a a = true.
@@ -281,7 +284,7 @@ Proof.
   
 
 
-  split_andb. apply beq_addrchunk_correct in H.
+  split_andb. apply beq_SymExpr_correct in H.
   apply beq_SymExpr_correct in H1.
   subst. f_equal. apply IHa; auto.
 Qed.

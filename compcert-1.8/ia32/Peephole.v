@@ -15,26 +15,9 @@ Require Import Coq.ZArith.Zbool.
 Require Import PeepholeLocations.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Basics.
-(*
-mov r1 (r2);      -- r1 <- mem_0 r2_0
-add r2 4;         -- r2 <- r2_0 - 4
-sub r2 4;         -- r2 <- r2_0 - 4 + 4
-mov (r2) r1;      -- mem <- (r2_0 - 4 + 4, mem_0 r2_0) :: mem_0
 
-=================
-
-mov r1 (r2);      -- r1 <- mem_0 r2 0
-
-mem' == mem
-mem_0  == (r2_0 - 4 + 4, mem_0 r2_0) ::  mem_0
-mem_0 == (r2_0, mem_0 r2_0) :: mem_0
-
-rs' = rs
-r2_0 = - r2_0 - 4 + 4
-*)
-
-Definition addrchunk := (memory_chunk * addrmode) % type.
-
+(* The binary operations were extracted to make the proof of
+   equality decidability have notably fewer cases, finish faster *)
 Inductive SymOp :=
   | SymAdd
   | SymAddF
@@ -131,7 +114,7 @@ Section SymExpr_ind'.
 
 End SymExpr_ind'.
 
-
+(* helper functions to construct SymExpr's in the obvious way *)
 Definition cmp := binOp SymCmp.
 Definition test := binOp SymTest.
 Definition add := binOp SymAdd.
@@ -153,20 +136,11 @@ Definition sub_f := binOp SymSubF.
 Definition mult_f := binOp SymMultF.
 Definition div_f := binOp SymDivF.
 
+(* Constraints are any side-effecting operation (e.g. potentially causing an exception) *)
 Inductive Constraint : Type :=
   | ReadMem  : SymExpr -> Constraint
   | WriteMem : SymExpr -> Constraint
   | DivBy    : SymExpr  -> Constraint.
-
-Definition memory_chunk_eq : forall (c1 c2 : memory_chunk), {c1 = c2} + {c1 <> c2}.
-  decide equality.
-Defined.
-
-Definition beq_memory_chunk (c1 c2 : memory_chunk) : bool :=
-  match memory_chunk_eq c1 c2 with
-    | left _ => true
-    | right _ => false
-  end.
 
 Definition addrmode_eq : forall (a1 a2 : addrmode), {a1 = a2} + {a1 <> a2}.
 Proof.
@@ -180,16 +154,6 @@ Defined.
 Definition beq_addrmode (a b : addrmode) : bool :=
   match addrmode_eq a b with
     | left _ => true
-    | right _ => false
-  end.
-
-Definition addrchunk_eq : forall (a b : (memory_chunk*addrmode)), {a = b} + {a <> b}.
-  decide equality. apply addrmode_eq. apply memory_chunk_eq.
-Defined.
-
-Definition beq_addrchunk (a b : (memory_chunk * addrmode)) : bool :=
-  match addrchunk_eq a b with
-    | left _  => true
     | right _ => false
   end.
 
@@ -224,12 +188,8 @@ Definition beq_preg (a b : preg) : bool :=
     | right _ => false
   end.
 
-Fixpoint beq_list_preg (a b : list preg) : bool :=
-  match a,b with
-    | nil,nil => true
-    | x::xs, y::ys => beq_preg x y && beq_list_preg xs ys
-    | _,_ => false
-  end.
+Definition beq_list_preg (a b : list preg) : bool :=
+  fold_left andb (map (fun p => beq_preg (fst p) (snd p)) (combine a b)) true.
 
 Fixpoint beq_SymExpr (s1 s2 : SymExpr) : bool :=
   let leq_SE := fix leq_SE (x1 x2 : list SymExpr) :=
@@ -238,10 +198,6 @@ Fixpoint beq_SymExpr (s1 s2 : SymExpr) : bool :=
       | x::xs, y::ys => beq_SymExpr x y && leq_SE xs ys
       | _, _  => false
     end in
-    let leq_AM := fun l1 l2 =>
-      if list_eq_dec addrchunk_eq l1 l2
-        then true
-        else false in
     match s1, s2 with
       | binOp o1 e11 e12, binOp o2 e21 e22 => beq_SymOp o1 o2 && beq_SymExpr e11 e21 
         && beq_SymExpr e12 e22
