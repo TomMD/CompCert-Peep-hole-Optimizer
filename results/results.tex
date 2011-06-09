@@ -186,5 +186,50 @@ load optimization.
 
 \section{Conclusion}
 
+\clearpage
+\appendix
+\section{Installation Instructions}
+To obtain the code simply git clone the repository.  From here on we
+assume you cloned into the {\tt ccomp-ph} directory.
+
+\begin{verbatim}
+$ git clone git://github.com/TomMD/CompCert-Peep-hole-Optimizer.git ccomp-ph
+\end{verbatim}
+
+The source can be configured, compiled, and installed in the normal
+manner (we recommend using Coq 8.2pl2):
+
+\begin{verbatim}
+$ cd ccomp-ph/compcert-1.8
+$ ./configure ia32-linux && make all && sudo make install
+\end{verbatim}
+
+Compiling and testing, be it generating assembly or building an
+executable, can proceed as normal:
+
+\begin{verbatim}
+$ cd comp-ph/benchmarks/clso
+$ ccomp -S *.c
+$ ls *.s
+\end{verbatim}
+
+\section{Code Layout}
+Within the {\tt ccomp-ph/compcert-1.8} directory the following files
+were modified and/or added:
+
+\begin{itemize}
+\item {\tt ia32/Peephole.v} -- contains the symbolic execution,
+  validator, and call-out to the ML optimizer.
+\item {\tt ia32/Peepholeproof.v} -- contains proofs about
+  properties of the operations in {\tt Peephole.v}.
+\item {\tt ia32/Peepholeaux.ml\{,i\}} -- the ML peephole
+  optimizer with basic, load and store centric, optimizations.
+\item {\tt driver/Compiler.v} -- Modified to call our
+  optimization pass and use the (admitted) proof of correctness.
+\item {\tt ia32/Asm.v} -- added equality tests for various data
+  types and added a {\tt NOP} instruction.
+\item {\tt extraction/extraction.v} -- modified in the obvious
+  manner to enable calling the ML optimizer.
+\end{itemize}
 
 \end{document}
