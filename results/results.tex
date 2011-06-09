@@ -33,6 +33,15 @@ information: the state of memory, the state of the registers
 produce side effects not captured by the symbolic expressions, such as
 dividing by zero).
 
+In order to properly compare two symbolic expressions, it is important
+to normalize them. Our validation is based on syntactic equivalence of
+expressions. Many syntactically different expressions can be
+semantically equivalent. Normalizing the symbolic expressions allows
+some semantically equivalent expressions to be accepted by the
+validator. Our normalization includes transformations which allow
+instruction weakening, though that particular optimization is not
+currently performed.
+
 \section{Status of proofs: }
 We have defined a set of inductive propositions which make explicit
 the meaning of two symbolic states being equivalent. Generally
@@ -89,13 +98,17 @@ the original.
 
 \section{Optimizer (ML side - functionality}
 The actual optimizations are load/store and removal of redundant loads
-({\tt load reg mem; \{op;\}* load reg mem;} \rightarrow {\tt load reg
+({\tt load reg mem; \{op;\}* load reg mem;} $\rightarrow$ {\tt load reg
   mem; \{op;\}*}).  The Gallina code provides the optimizer with the
 largest possible block that can be symbolicly executed, the optimizer
 is in charge of extracting suitable windows for the operation of
 individual optimization rules.
 
 \section{Dark Corners}
+
+\subsection{Assumptions in the Existing Proofs}
+
+
 \subsection{Aspects of Symbolic Execution}
 \paragraph{Limited Normalization: }The validator's normalization
 process translates all symbolic expressions into a normal form,
@@ -162,6 +175,7 @@ insufficient because they capture a base in terms of a particular register
 and not the contents of the register at the time the address was used.
 Replacing this dependence was the source of significant code and proof
 reworking.
+
 
 \section{Impact of the Optimizer}
 In our test code (consisting of benchmarks from the ``Computer
