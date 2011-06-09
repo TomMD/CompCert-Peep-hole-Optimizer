@@ -337,7 +337,7 @@ Definition setAllFlags (l : SymState) (e : SymExpr) : SymState :=
     # (Register (CR SOF)) <- e.
 
 (* small step symbolic execution *)
-Definition single_symExec (i : instruction) (l : SymState) : option SymState :=
+Definition single_symExec' (i : instruction) (l : SymState) : option SymState :=
   match i with
   | Pnop => Some l
       (** Moves *)
@@ -632,6 +632,13 @@ Definition single_symExec (i : instruction) (l : SymState) : option SymState :=
       None
       (* Stuck                             (**r treated specially below *)*)
   end.
+
+Definition single_symExec i l :=
+  let pc := Register PC in
+  match single_symExec' i l with
+        | Some l' => Some (l' # pc <- (add (l # pc) (Imm (Vint (Int.repr 1)))))
+        | None    => None
+      end.
 
 (* Big step symbolic execution *)
 Fixpoint symExec (c : code) (l : SymState) : option SymState :=
