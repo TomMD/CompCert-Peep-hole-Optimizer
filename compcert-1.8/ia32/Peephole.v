@@ -53,7 +53,7 @@ Inductive SymExpr : Type :=
   | InitialMem : SymExpr -> SymExpr
 
   (* Memory *)
-  | Load : SymExpr -> list SymExpr -> list SymExpr -> SymExpr. (* addr being read, addr of value, value stored  *)
+  | Load : SymExpr (* Address *) -> list SymExpr (* Addresses*) -> list SymExpr -> SymExpr.
 
 (* To try and avoid confusion we use the alias 'Addr' to refer to
   SymExprs that represent an address *)
@@ -61,7 +61,7 @@ Definition Addr := SymExpr.
 
 Inductive Loc : Type :=
   | Register : preg -> Loc
-  | Memory   : Addr -> Loc.
+  | Memory   : SymExpr -> Loc.
 
 (* we need a custom induction principle for our nested data type, a la cpdt *)
 Section All.
@@ -91,7 +91,7 @@ Section SymExpr_ind'.
   Hypothesis InitialReg_case : forall l, P (InitialReg l).
   Hypothesis InitialMem_case : forall l, P l -> P (InitialMem l).
 
-  Hypothesis Load_case : forall (a : Addr) (la : list SymExpr) (le : list SymExpr),
+  Hypothesis Load_case : forall (a : Addr) (la : list Addr) (le : list SymExpr),
     P a -> All P la -> All P le -> P (Load a la le).
 
   Fixpoint SymExpr_ind' (s : SymExpr) : P s :=
@@ -138,8 +138,8 @@ Definition div_f := binOp SymDivF.
 
 (* Constraints are any side-effecting operation (e.g. potentially causing an exception) *)
 Inductive Constraint : Type :=
-  | ReadMem  : SymExpr -> Constraint
-  | WriteMem : SymExpr -> Constraint
+  | ReadMem  : Addr -> Constraint
+  | WriteMem : Addr -> Constraint
   | DivBy    : SymExpr  -> Constraint.
 
 Definition addrmode_eq : forall (a1 a2 : addrmode), {a1 = a2} + {a1 <> a2}.
@@ -254,7 +254,7 @@ Definition symReg (s : SymState) : regs :=
   | SymSt _ _ l => l
   end.
 
-Definition symSetMem (l : SymExpr) (x : SymExpr) (s : SymState) : SymState :=
+Definition symSetMem (l : Addr) (x : SymExpr) (s : SymState) : SymState :=
   match s with
   | SymSt c m r => SymSt c (update l x m) r
   end.
@@ -270,12 +270,12 @@ Definition constraints (s : SymState) : list Constraint :=
   end.
 
 (* Helper functions to modify the constraints of a SymState *)
-Definition readMem (l : SymExpr) (s : SymState) : SymState :=
+Definition readMem (l : Addr) (s : SymState) : SymState :=
   match s with
     | SymSt c mapping r => SymSt (ReadMem l::c) mapping r
   end.
 
-Definition writeMem (l : SymExpr) (s : SymState) : SymState :=
+Definition writeMem (l : Addr) (s : SymState) : SymState :=
   match s with
     | SymSt c mapping r => SymSt (WriteMem l ::c) mapping r
   end.
@@ -681,7 +681,6 @@ Fixpoint normalizeSymOp (o : SymOp) (e1 e2 : SymExpr) : SymExpr :=
    'X'.  *)
 Definition doesNotAlias (a1 a2 : SymExpr) := false.
 
-
 (* In much of the below work there would be great benefit to being
    able to have mutually recursive functions.  For example,
    "nonaliasedLookup" should be able to call "normalize" when
@@ -692,20 +691,6 @@ Definition doesNotAlias (a1 a2 : SymExpr) := false.
 
    These situations are commented, as a form of lamentation / protest,
    with MRF (Mutual Recusion FIXME).  *)
-
-(* Normalize a lookup by replacing the expression with the
-   stored value, but ONLY IF it can be proven not to alias. *)
-Fixpoint nonaliasedLookup (a : Addr) (addrs : list Addr) (syms : list SymExpr) : SymExpr :=
-  match addrs,syms with
-    | a1::moreA,s1::moreS =>
-      if beq_SymExpr a1 a  (* MRF *)
-        then s1
-        else
-          if doesNotAlias a1 a
-            then nonaliasedLookup a moreA moreS
-            else Load a addrs syms
-    | _,_ => Load a addrs syms
-  end.
 
 Lemma length_filter_lt_length_cons : forall (A : Type) (f : A -> bool) (xs : list A) (x : A),
   lt (length (filter f xs)) (length (x :: xs)).
@@ -724,39 +709,78 @@ Qed.
 Function normalizeMem (zipped : list (Addr * SymExpr)) {measure length zipped}: (list (Addr * SymExpr)) := 
     match zipped with
       | (a1,s1)::more =>
-        let filterOp x := if beq_SymExpr (fst x) a1 then false else true in
-        (a1,s1) :: normalizeMem (filter filterOp more)  (* MRF, fst x, a1 *)
+        let filterOp x := if beq_SymExpr ((* normalize *) (fst x)) ((* normalize *) a1) then false else true in
+        (a1,s1) :: normalizeMem (filter filterOp more)
       | _ => nil
     end.
 Proof.
   intros. apply length_filter_lt_length_cons.
 Qed.
 
-Fixpoint normalize (s : SymExpr) : SymExpr :=
+Fixpoint symExprSize (s : SymExpr) : nat :=
+  let symExprListSize xs := fold_left (fun a b => (a + symExprSize b) %nat) xs (0%nat) in 
+  match s with
+  | binOp _ a b => 1 + symExprSize a + symExprSize b
+  | neg x => 1 + symExprSize x
+  | abs_f x => 1 + symExprSize x
+  | neg_f x => 1 + symExprSize x
+  | Imm _ => 1
+  | InitialReg _ => 1
+  | InitialMem m => 1 + symExprSize m
+  | Load a b c  => symExprSize a + symExprListSize b + symExprListSize c
+  end % nat.
+
+Definition symExprListSize (es : list SymExpr) : nat := fold_left (fun a b => (a + symExprSize b) %nat) es 0 %nat.
+
+(* nonaliased lookup is used to extract a value from a memory state.
+   The memory state is kept in the order it was written (most recent
+   write at the head), if we can't prove the desired address doesn't
+   alias the latest write then we can only return a "load" with the
+   remaining memory state.  If we can show aliasing isn't occuring
+   then we drop the head and try again with the tail. NOTE this
+   assumes the lookup addr and addrs list are normalized! *)
+Fixpoint nonaliasedLookup (a : SymExpr) (addrs : list SymExpr) (syms : list SymExpr) (* {struct addrs} *) : SymExpr :=
+  match addrs,syms with
+   | a1::moreA,s1::moreS => 
+       if beq_SymExpr a1 a
+         then s1
+         else
+           if doesNotAlias a1 a
+             then nonaliasedLookup a moreA moreS
+             else Load a addrs syms
+   | _,_ => Load a addrs syms
+  end.
+
+(* Normalize a lookup by replacing the expression with the
+   stored value, but ONLY IF it can be proven not to alias. *)
+Fixpoint normalize (s : SymExpr) (* {struct s} *) : SymExpr :=
   match s with
     | binOp o e1 e2 =>
       let d1 := normalize e1 in let d2 := normalize e2 in
         normalizeSymOp o d1 d2
     | neg e =>
-        match e with
-          | neg x => normalize x
-          | _     => normalize e
-        end
+      match e with
+        | neg x => normalize x
+        | _     => normalize e
+      end
     | abs_f e =>
-        match e with
-          | abs_f x => abs_f (normalize x)
-          | _       => abs_f (normalize e)
-        end
+      match e with
+        | abs_f x => abs_f (normalize x)
+        | _       => abs_f (normalize e)
+      end
     | neg_f e =>
-        match e with
-          | neg_f x => normalize x
-          | _       => normalize e
-        end
+      match e with
+        | neg_f x => normalize x
+        | _       => normalize e
+      end
     | Imm v => Imm v
     | InitialReg l => InitialReg l
     | InitialMem l => InitialMem l
-    | Load a addrs syms => let (addrs', syms') := split (normalizeMem (combine addrs syms))
-      in nonaliasedLookup a addrs' syms
+    | Load a addrs syms =>
+      let addrsN := map normalize addrs in
+        let (addrsM, symsM) := split (normalizeMem (combine addrsN syms)) in 
+          let a' := normalize a in
+            nonaliasedLookup a' addrsM symsM
   end.
 
 Definition normalizeConstraint (c : Constraint) : Constraint :=
