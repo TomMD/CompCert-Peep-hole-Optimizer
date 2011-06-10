@@ -173,10 +173,10 @@ expand these instructions in the optimizer allowing them to be
 optimized. It is unclear how this might affect the overall proofs.
 
 \paragraph{Treatment of flags: } 
-The flags follow x86 semantics~\footnote{x86 semantics as defined by
-  Intel} as closely as possible~\footnote{CompCert ignores some flags
+The flags follow x86 semantics\footnote{x86 semantics as defined by
+  Intel} as closely as possible.\footnote{CompCert ignores some flags
   and conflates others, providing only one register bit for two
-  separate flags.}.  By following the Intel specification, the
+  separate flags.}  By following the Intel specification, the
 validator is more restrictive than, but not in conflict with, the
 CompCert semantics which declares the flags to be undefined after most
 arithmetic instructions.  Because this work defines normalization as
