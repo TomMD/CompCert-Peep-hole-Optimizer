@@ -19,11 +19,11 @@ optimization.
 Following the example of Tristan and Leroy, we use a technique called
 translation validation to implement a peephole optimizer for the
 CompCert x86 backend. In this implementation, an unverified optimizer
-implemented in ML traverses small segment of assembly code making
+implemented in ML traverses small segments of assembly code making
 local optimizations. A validation routine, implemented in the Coq
 theorem prover, examines these optimizations using symbolic evaluation
 and decision procedures to determine whether the optimizations are
-correct. The validation routine is supported with proofs of it's
+correct. The validation routine is supported with proofs of its
 correctness.  Below we address each of these components individually.
 
 \section{Symbolic-Execution Based Validator}
@@ -50,17 +50,24 @@ multiplying by a power of two with an equivalent {\tt sal}
 instruction, though that particular optimization is not currently
 performed.
 
+The validator uses a series of boolean decision procedures to judge
+the syntactic equality of normalized expressions. If all the relevant
+symbolic expressions are judged to be equivalent, then the optimized
+code is accepted and used in place of the un-optimized code.
+
 \section{Status of proofs}
 We have defined a set of inductive propositions which make explicit
-the meaning of two symbolic states being equivalent. Generally
+the meaning of the equivalence of two symbolic states. Generally
 speaking, we use syntactic equality between symbolic expressions to
-express equivalence between portions of symbolic state. But
-in some cases, e.g., status flags, we allow different relations to
+express equivalence between portions of symbolic state. But in some
+cases, e.g., status flags, we allow different relations to
 suffice. For example, in keeping with the convention on CompCert, if a
 flag becomes {\it more defined} as a result of an operation, that flag
-would be considered equivalent to the less defined version. 
-
-The overall equivalence proposition is :
+would be considered equivalent to the less defined version. We have
+defined propositions expressing equivalence between symbolic states of
+registers, flags and memory. These propositions are combined with a
+subset relation on constraints to produce the overall equivalence
+proposition.
 
 \begin{verbatim}
 Inductive symStates_match : SymState -> SymState -> Prop :=
@@ -73,11 +80,6 @@ Inductive symStates_match : SymState -> SymState -> Prop :=
     symStates_match s1 s2. 
   
 \end{verbatim}
-
-This proposition captures our definition of symbolic state
-equivalence. To support this proposition, there are a number of
-additional inductive propositions and correctness lemmas for various
-boolean decision properties. 
 
 The correctness of our optimizations depends on the validation routine
 only accepting code fragments for which we can prove the above
