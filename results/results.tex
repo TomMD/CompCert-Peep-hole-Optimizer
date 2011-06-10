@@ -134,7 +134,7 @@ some inductive relation on symbolic expressions. This relation could
 rely on a proof of semantic equivalence between normalized and
 un-normalized  expressions. This would then require a proof of
 correctness for the normalization procedure in order to express
-equivalence of symbolic expressions, and by extension symbolic
+equivalence of symbolic expressions, and, by extension, symbolic
 states. This requires development of a denotation for our symbolic
 expressions in the CompCert semantic framework.
 
@@ -209,9 +209,9 @@ instruction weakening, this forced us to reconsider our intended
 showcase optimization and include proper alias analysis.
 
 \paragraph{Use of {\tt addrmode} for address information}
-Even late into development CompCert's {\tt addrmode} was used to as the
-memory addressing under the implicit assumption addrmode equality would 
-correctly identify aliasing.  Briefly, {\tt addrmode}'s are
+Even late into development, CompCert's {\tt addrmode} was used to represent
+memory addressing under the implicit assumption {\tt addrmode} equality would 
+correctly identify aliasing.  Briefly, {\tt addrmode}s are
 insufficient because they capture a base in terms of a particular register
 and not the contents of the register at the time the address was used.
 Replacing this dependence was the source of significant code and proof
