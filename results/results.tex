@@ -142,7 +142,7 @@ expressions in the CompCert semantic framework.
 \subsection{Aspects of Symbolic Execution}
 \paragraph{Limited Normalization: }The validator's normalization
 process translates all symbolic expressions into a normal form,
-allowing direct comparison of expressions from differint executions.
+allowing direct comparison of expressions from different executions.
 Unfortunately, there exists a (unimplemented) need for mutual
 recursion between the normalization of expressions and the
 normalization of expressions stored in memory (the state of memory is
@@ -160,8 +160,8 @@ appropriate base and offset data from the rather verbose {\tt
 
 \paragraph{Unimplemented Instructions: }
 Certain instructions, particularly those working on data smaller than
-32 bits, have no symbolic execution. This forces the ``executable
-blocks'' to be rather small. Additionally, there are several
+32 bits, have no symbolic execution. This forces the executable
+blocks to be rather small. Additionally, there are several
 optimization opportunities that exist in the final assembly code that
 are not available in the assembly generation level in CompCert. This
 is because there are several pseudo-instructions which capture more
@@ -180,14 +180,14 @@ The flags follow x86 semantics\footnote{x86 semantics as defined by
 validator is more restrictive than, but not in conflict with, the
 CompCert semantics which declares the flags to be undefined after most
 arithmetic instructions.  Because this work defines normalization as
-an operation that maintains arithmetic equivalence, but not necesarily
+an operation that maintains arithmetic equivalence, but not necessarily
 the flag value's equivalence, it is not possible to normalize the
 expressions when comparing flag values.  Instead, a straight forward
-syntaxtic equality is used which could result in unnecessary rejection
+syntactic equality is used which could result in unnecessary rejection
 of optimized code.
 
 \section{False Starts}
-In general, the false starts give a solid ``lessons learned'' of
+In general, the false starts give a solid lessons learned of
 explicitly identifying and verifying the assumptions early.
 
 
@@ -203,7 +203,7 @@ theorem for the end-to-end proof.
 \paragraph{Avoidance of Alias Analysis: }
 Our canonical optimizations were instruction weakening and removing
 sequential redundant loads, neither of which require alias analysis.
-Due to pseudo instructions there were zero redundant loads visiable to
+Due to pseudo instructions there were zero redundant loads visible to
 the peephole optimizer; coupled with the generally larger scope of
 instruction weakening, this forced us to reconsider our intended
 showcase optimization and include proper alias analysis.
