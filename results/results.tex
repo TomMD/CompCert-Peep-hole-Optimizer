@@ -9,23 +9,26 @@
 \section{Introduction}
 
 Compcert's x86 back-end is known to produce inefficient code, even
-when compared to ARM and PPC instructions produced from the same
+when compared to the ARM and PPC instructions produced from the same
 source code.  Informal observation suggests there is opportunity for
 performance improvement using an architecture specific peephole
 optimization.
 
 \section{Method}
 
-In a similar vein to work by Tristian and Leroy's Translation
-Validators, we have an initial implementation of a ML peephole
-optimizer, a Gallina validator performing symbolic execution to
-compare pre- and post-optimized code, a parent ``optimize'' routine to
-traverse the instructions, and proofs of the validator's correctness.
-Below we address each of these components individually.
+Following the example of Tristan and Leroy, we use a technique called
+translation validation to implement a peephole optimizer for the
+CompCert x86 backend. In this implementation, an unverified optimizer
+implemented in ML traverses small segment of assembly code making
+local optimizations. A validation routine, implemented in the Coq
+theorem prover, examines these optimizations using symbolic evaluation
+and decision procedures to determine whether the optimizations are
+correct. The validation routine is supported with proofs of it's
+correctness.  Below we address each of these components individually.
 
 \section{Symbolic-Execution Based Validator}
 
-The validator accepts the pre- and post-optimized code as arguments.
+The validator accepts pre- and post-optimized code as arguments.
 It then symbolicly executes each of the pieces of code and compares
 the result.  Symbolic execution results in three critical pieces of
 information: the state of memory, the state of the registers
@@ -33,16 +36,21 @@ information: the state of memory, the state of the registers
 produce side effects not captured by the symbolic expressions, such as
 dividing by zero).
 
-In order to properly compare two symbolic expressions, it is important
-to normalize them. Our validation is based on syntactic equivalence of
-expressions. Many syntactically different expressions can be
-semantically equivalent. Normalizing the symbolic expressions allows
-some semantically equivalent expressions to be accepted by the
-validator. Our normalization includes transformations which allow
-instruction weakening, though that particular optimization is not
-currently performed.
+In order to properly compare the results of symbolic execution, it is
+important to normalize the symbolic expressions produced. Our
+validation is based on syntactic equivalence of expressions, but many
+syntactically different expressions can be semantically
+equivalent. Normalizing the symbolic expressions allows semantically
+equivalent expressions to be put into a canonical form. Thus, certain
+classes of semantically equivalent expressions which would otherwise
+be rejected by the validator can instead be accepted. Our
+normalization includes transformations which allow instruction
+weakening, such as replacing an {\tt leal} instruction used for
+multiplying by a power of two with an equivalent {\tt sal}
+instruction, though that particular optimization is not currently
+performed.
 
-\section{Status of proofs: }
+\section{Status of proofs}
 We have defined a set of inductive propositions which make explicit
 the meaning of two symbolic states being equivalent. Generally
 speaking, we use syntactic equality between symbolic expressions to
@@ -92,17 +100,16 @@ The optimize function accepts a basic block and divides it into
 smaller blocks, breaking the list of instructions at each instruction
 that is not recognized by our symbolic execution.  For each of these
 ``executable blocks'', we optimize the code and validate the result
-has the same execution as the original instructions.  If the
-validation ever fails, the optimized block is discarded in favor of
-the original.
+using the verified validator.  If the validation ever fails, the
+optimized block is discarded in favor of the original.
 
-\section{Optimizer (ML side - functionality}
-The actual optimizations are load/store and removal of redundant loads
-({\tt load reg mem; \{op;\}* load reg mem;} $\rightarrow$ {\tt load reg
-  mem; \{op;\}*}).  The Gallina code provides the optimizer with the
-largest possible block that can be symbolicly executed, the optimizer
-is in charge of extracting suitable windows for the operation of
-individual optimization rules.
+\section{Optimizer (ML side - functionality)}
+The currently implemented optimizations are load/store and removal of
+redundant loads ({\tt load reg mem; \{op;\}* load reg mem;}
+$\rightarrow$ {\tt load reg mem; \{op;\}*}).  The Gallina code
+provides the optimizer with the largest possible block that can be
+symbolicly executed, the optimizer is in charge of extracting suitable
+windows for the operation of individual optimization rules.
 
 \section{Dark Corners}
 
@@ -113,12 +120,12 @@ several notable shortcomings. First, and perhaps most important, it is
 not readily apparent that this definition can be related to the
 CompCert proof of semantic equivalence between programs. This
 shortcoming follows almost directly from our failure to properly
-consider the CompCert semantics from the beginning. While we did some
-investigation of developing backwards from the admitted theorem
-required to complete the CompCert proof, that work was dropped in
-favor of ``getting something done.'' Ultimately, this caused our
-development to diverge from the requirements needed to connect to the
-CompCert framework properly. 
+consider the CompCert semantics from the beginning. Although we did
+initially develop backwards from the admitted theorem required to
+complete the CompCert proof, that work was dropped in favor of
+``getting something done.'' Ultimately, this caused our development to
+diverge from the requirements needed to connect to the CompCert
+framework properly.
 
 Additionally, encoded in our inductive propositions is the assumption
 that the normalization procedure is correct. One proposal is to move
@@ -146,14 +153,24 @@ will only be properly normalized and accepted if the non-normalized
 value was kept in the registers and never {\it spilled} into memory.
 
 Finally, there is no alias analysis used when normalizing loads into
-the stored expressions.  This isn't a fundamental issue, merely a
-failing due to time constraints and the complexity of comparing the
-rather verbose {\tt SymExpr}'s for identical base and constant offset
-of sufficient size.
+the stored expressions.  This isn't a fundamental issue, but rather a
+failing due to time constraints and the complexity of extracting
+appropriate base and offset data from the rather verbose {\tt
+  SymExpr}'s used to represent addresses.
 
-\paragraph{Shortcomings: }
-Certain instructions, particularly those working on data
-smaller than 32 bits, have no symbolic execution.
+\paragraph{Unimplemented Instructions: }
+Certain instructions, particularly those working on data smaller than
+32 bits, have no symbolic execution. This forces the ``executable
+blocks'' to be rather small. Additionally, there are several
+optimization opportunities that exist in the final assembly code that
+are not available in the assembly generation level in CompCert. This
+is because there are several pseudo-instructions which capture more
+sophisticated behavior than a single assembly instruction. These
+pseudo-instructions are expanded into their final instructions in the
+pretty printing routines and are consequently not visible to our
+optimizer. We feel that with additional time it would be possible to
+expand these instructions in the optimizer allowing them to be
+optimized. It is unclear how this might affect the overall proofs.
 
 \paragraph{Treatment of flags: } 
 The flags follow x86 semantics~\footnote{x86 semantics as defined by
@@ -211,17 +228,32 @@ load optimization.
 Generally speaking the one currently functioning optimization only
 impacts functions with multiple arguments. In the benchmarks tested,
 the optimization generally appears in code that is either early in
-main() or in functions which are not part of a tight
+{\tt main()} or in functions which are not part of a tight
 loop. Consequently, the optimization has almost no impact. However,
-for the recursive test, the optimization does appear in the
-implementation of Ackerman's function. In this particular case, we see
-a speedup of approximately 5\% versus the unoptimized code. While this
-is certainly not a dramatic result, it does show that these types of
-optimizations can improve the performance of x86 code generated by
-CompCert. A more fully developed suite of optimizations may have
-significant impact in a variety of programs. 
+for the {\tt recursive.c} test, the optimization is applied in the
+implementation of Ackerman's function. In this particular case, where
+the optimization happens to fall in the argument handling code for a
+heavily recursive function, we see a speedup of approximately 5\%
+versus the unoptimized code. While this is certainly not a dramatic
+result, it does show that these types of optimizations can improve the
+performance of x86 code generated by CompCert. A more fully developed
+suite of optimizations may have significant impact in a variety of
+programs.
 
 \section{Conclusion}
+
+We consider these results to be a reasonable ``first try.'' We
+dramatically underestimated the scope of the project and failed to
+understand the implications of some of our design
+decisions. Certainly, this is our first serious attempt at development
+within a theorem prover and there were bound to be some hard
+lessons. We spent considerable time focusing on the engineering of an
+optimizer and learning after the fact that our solutions were not well
+suited to verification. In retrospect, if we had focused more on
+pre-development design, development of an overall proof strategy, and
+the implementation of a framework that better connects to CompCert we
+would have perhaps not had a working optimizer, but a more solid
+foundation for completion of the overall project.
 
 \clearpage
 \appendix
