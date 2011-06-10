@@ -743,7 +743,7 @@ Fixpoint nonaliasedLookup (a : SymExpr) (addrs : list SymExpr) (syms : list SymE
   match addrs,syms with
    | a1::moreA,s1::moreS => 
        if beq_SymExpr a1 a
-         then s1
+         then s1 (* MRF *)
          else
            if doesNotAlias a1 a
              then nonaliasedLookup a moreA moreS
@@ -802,7 +802,9 @@ Fixpoint subset (a b : list Constraint) : bool :=
 (* For memory to be valid it must be syntaxtically equal after normalization *)
 Definition validMem (c : SymState) (d : SymState) : bool := 
   let (c',d') := (normalizeMem (store (symMem c)), normalizeMem (store (symMem d))) in
-    beq_MemState c' d'.
+    let normalizeAddrs xs := map (fun x => (normalize (fst x),(snd x))) xs in
+      let (cN, dN) := (normalizeAddrs c', normalizeAddrs d') in
+        beq_MemState cN dN.
 
 (* Registers are valid if every register, except the flag register, has
    the same symbolic value.  This task is broken down into integer and
