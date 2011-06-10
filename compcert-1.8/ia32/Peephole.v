@@ -686,8 +686,8 @@ Definition doesNotAlias (a1 a2 : SymExpr) := false.
    "nonaliasedLookup" should be able to call "normalize" when
    comparing to addresses for equality (to allow more optimizations).
    Unfortunately, nonaliasedLookup is itself part of normalize so
-   without making it a local function to "normalize" this isn't
-   possible.
+   without complex termination proof work, which has failed thus far,
+   I am stuck.
 
    These situations are commented, as a form of lamentation / protest,
    with MRF (Mutual Recusion FIXME).  *)
@@ -739,21 +739,21 @@ Definition symExprListSize (es : list SymExpr) : nat := fold_left (fun a b => (a
    remaining memory state.  If we can show aliasing isn't occuring
    then we drop the head and try again with the tail. NOTE this
    assumes the lookup addr and addrs list are normalized! *)
-Fixpoint nonaliasedLookup (a : SymExpr) (addrs : list SymExpr) (syms : list SymExpr) (* {struct addrs} *) : SymExpr :=
-  match addrs,syms with
-   | a1::moreA,s1::moreS => 
-       if beq_SymExpr a1 a
-         then s1 (* MRF *)
-         else
-           if doesNotAlias a1 a
-             then nonaliasedLookup a moreA moreS
-             else Load a addrs syms
-   | _,_ => Load a addrs syms
-  end.
 
 (* Normalize a lookup by replacing the expression with the
    stored value, but ONLY IF it can be proven not to alias. *)
-Fixpoint normalize (s : SymExpr) (* {struct s} *) : SymExpr :=
+Program Fixpoint normalize (s : SymExpr) : SymExpr :=
+  let nonaliasedLookup := fix nonaliasedLookup a addrs syms  :=
+    match addrs,syms with
+      | a1::moreA,s1::moreS => 
+        if beq_SymExpr a1 a
+          then s1 (* MRF *)
+          else
+            if doesNotAlias a1 a
+              then nonaliasedLookup a moreA moreS
+              else Load a addrs syms
+      | _,_ => Load a addrs syms
+  end in
   match s with
     | binOp o e1 e2 =>
       let d1 := normalize e1 in let d2 := normalize e2 in
@@ -802,9 +802,16 @@ Fixpoint subset (a b : list Constraint) : bool :=
 (* For memory to be valid it must be syntaxtically equal after normalization *)
 Definition validMem (c : SymState) (d : SymState) : bool := 
   let (c',d') := (normalizeMem (store (symMem c)), normalizeMem (store (symMem d))) in
-    let normalizeAddrs xs := map (fun x => (normalize (fst x),(snd x))) xs in
-      let (cN, dN) := (normalizeAddrs c', normalizeAddrs d') in
-        beq_MemState cN dN.
+        beq_MemState c' d'.
+
+(* MRF - the below 2 lines should be part of validMem - we really
+   should normalize addresses before comparison (via veq_MemState) to
+   ensure instruction rewriting doesn't negatively impact the validity
+   of memory.
+
+   let normalizeAddrs xs := map (fun x => (normalize (fst x),(snd x))) xs in
+   let (cN, dN) := (normalizeAddrs c', normalizeAddrs d') in *)
+
 
 (* Registers are valid if every register, except the flag register, has
    the same symbolic value.  This task is broken down into integer and
